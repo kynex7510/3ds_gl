@@ -137,7 +137,7 @@ void GLASS_gpu_init(CtxImpl *ctx) {
   Assert(ctx, "Context was nullptr!");
 
   // Setup GPU command buffer.
-  ctx->cmdBuffer = (u32 *)linearAlloc(GPU_MAX_ENTRIES * 4);
+  ctx->cmdBuffer = (u32 *)AllocLinear(GPU_MAX_ENTRIES * 4);
   Assert(ctx->cmdBuffer, "Could not allocate GPU command buffer!");
 
   // Setup GX command queue.
@@ -155,7 +155,7 @@ void GLASS_gpu_fini(CtxImpl *ctx) {
 
   // Free GPU command buffer.
   if (ctx->cmdBuffer)
-    linearFree(ctx->cmdBuffer);
+    FreeLinear(ctx->cmdBuffer);
 }
 
 void GLASS_gpu_enableRegs(CtxImpl *ctx) {

@@ -25,11 +25,6 @@ static void GLASS_internal_swapBuffers(gxCmdQueue_s *queue) {
 
 // GLASS
 
-void glassSetAllocator(const glassAllocator allocator,
-                       const glassDeallocator deallocator) {
-  SetMemAlloc(allocator, deallocator);
-}
-
 glassCtx *glassCreateContext(void) {
   CtxImpl *ctx = (CtxImpl *)AllocMem(sizeof(CtxImpl));
 

@@ -75,9 +75,9 @@ void glBufferData(GLenum target, GLsizeiptr size, const void *data,
 
   // Allocate buffer.
   if (info->address)
-    linearFree(info->address);
+    FreeLinear(info->address);
 
-  info->address = linearAlloc(size);
+  info->address = AllocLinear(size);
 
   if (!info->address) {
     SetError(GL_OUT_OF_MEMORY);
@@ -143,7 +143,7 @@ void glDeleteBuffers(GLsizei n, const GLuint *buffers) {
 
     // Delete buffer.
     if (info->address)
-      linearFree(info->address);
+      FreeLinear(info->address);
 
     FreeMem(info);
   }

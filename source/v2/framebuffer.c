@@ -192,7 +192,7 @@ void glDeleteRenderbuffers(GLsizei n, const GLuint *renderbuffers) {
 
     // Delete renderbuffer.
     if (info->address)
-      vramFree(info->address);
+      FreeVRAM(info->address);
 
     FreeMem(info);
   }
@@ -378,15 +378,15 @@ void glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width,
 
   // Allocate buffer.
   if (info->address)
-    vramFree(info->address);
+    FreeVRAM(info->address);
 
-  info->address = vramAllocAt(
+  info->address = AllocVRAM(
       bufferSize, IsDepthBuffer(internalformat) ? VRAM_ALLOC_B : VRAM_ALLOC_A);
 
   if (!info->address) {
     info->address =
-        vramAllocAt(bufferSize, IsDepthBuffer(internalformat) ? VRAM_ALLOC_A
-                                                              : VRAM_ALLOC_B);
+        AllocVRAM(bufferSize,
+                  IsDepthBuffer(internalformat) ? VRAM_ALLOC_A : VRAM_ALLOC_B);
   }
 
   if (!info->address) {

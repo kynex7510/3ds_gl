@@ -7,26 +7,12 @@
 
 #include <3ds.h>
 
-// Allocator declaration.
-typedef void *(*glassAllocator)(const size_t size);
-
-// Deallocator declaration.
-typedef void (*glassDeallocator)(void *p);
-
 // Public context structure.
 typedef struct {
   gfxScreen_t targetScreen;        // Target screen for drawing (top or bottom).
   gfx3dSide_t targetSide;          // Target side for drawing (left or right).
   GX_TRANSFER_SCALE transferScale; // Anti-aliasing.
 } glassCtx;
-
-/**
- * Set a custom allocator for memory management. Allocator must return NULL
- * on failure. Deallocator is guaranteed to never receive a NULL. Pass NULL
- * to both for default (malloc/free).
- */
-void glassSetAllocator(const glassAllocator allocator,
-                       const glassDeallocator deallocator);
 
 /**
  * Create and initialize a context. Return NULL on failure. Required for any

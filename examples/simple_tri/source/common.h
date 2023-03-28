@@ -11,20 +11,13 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 
 #define GLCheck2(line, ...)                                                    \
   __VA_ARGS__;                                                                 \
   checkError(line);
 
 #define GLCheck(...) GLCheck2(__LINE__, __VA_ARGS__)
-
-static void logRaw(const char *s) {
-#if defined(COMMON_HAS_CONSOLE)
-  printf(s);
-#else
-  svcOutputDebugString(s);
-#endif
-}
 
 static const char *stringifyError(const GLenum error) {
   switch (error) {
@@ -47,10 +40,72 @@ static void checkError(const size_t line) {
   if (error != GL_NO_ERROR) {
     sprintf(buffer, "ERROR: \"%s\" (%04x) at line %u\n", stringifyError(error),
             error, line);
-    logRaw(buffer);
+    svcOutputDebugString(buffer, strlen(buffer));
     svcBreak(USERBREAK_PANIC);
   }
 }
+
+#if defined(COMMON_HAS_CONSOLE)
+
+static size_t g_UsedMem = 0;
+static size_t g_UsedLinearMem = 0;
+static size_t g_UsedVRAM = 0;
+
+static void printNumBytes(const size_t size) {
+  if (size > 1 * 1000 * 1000) {
+    printf("%.3f MB\n", size / (1.0f * 1000 * 1000));
+  } else if (size > 1 * 1000) {
+    printf("%.3f KB\n", size / (1.0f * 1000));
+  } else {
+    printf("%u bytes\n", size);
+  }
+}
+
+static void refreshDebugStats(void) {
+  consoleClear();
+  printf("MEMORY USAGE\n");
+
+  printf("Virtual memory: ");
+  printNumBytes(g_UsedMem);
+
+  printf("Linear memory: ");
+  printNumBytes(g_UsedLinearMem);
+
+  printf("VRAM: ");
+  printNumBytes(g_UsedVRAM);
+}
+
+void GLASS_virtualAllocHook(const void *p, const size_t size) {
+  g_UsedMem += size;
+  refreshDebugStats();
+}
+
+void GLASS_virtualFreeHook(const void *p, const size_t size) {
+  g_UsedMem -= size;
+  refreshDebugStats();
+}
+
+void GLASS_linearAllocHook(const void *p, const size_t size) {
+  g_UsedLinearMem += size;
+  refreshDebugStats();
+}
+
+void GLASS_linearFreeHook(const void *p, const size_t size) {
+  g_UsedLinearMem -= size;
+  refreshDebugStats();
+}
+
+void GLASS_vramAllocHook(const void *p, const size_t size) {
+  g_UsedVRAM += size;
+  refreshDebugStats();
+}
+
+void GLASS_vramFreeHook(const void *p, const size_t size) {
+  g_UsedVRAM -= size;
+  refreshDebugStats();
+}
+
+#endif
 
 static GLuint setupShaderProgram(void) {
   GLCheck(GLuint sprog = glCreateProgram());
@@ -139,6 +194,8 @@ static void initCommon(glassCtx **topCtx, glassCtx **bottomCtx) {
 #if !defined(COMMON_HAS_CONSOLE)
   if (bottomCtx)
     *bottomCtx = initBottomScreen();
+#else
+  refreshDebugStats();
 #endif
 }
 

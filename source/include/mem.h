@@ -9,18 +9,29 @@
 
 #include <string.h>
 
-// Set allocator.
-#define SetMemAlloc(alloc, dealloc) GLASS_mem_setAllocator((alloc), (dealloc))
-void GLASS_mem_setAllocator(const glassAllocator allocator,
-                            const glassDeallocator deallocator);
+// Virtual memory allocator.
+#define AllocMem GLASS_mem_virtualAlloc
+void *GLASS_mem_virtualAlloc(const size_t size);
 
-// Memory allocator.
-#define AllocMem(size) GLASS_mem_alloc((size))
-void *GLASS_mem_alloc(const size_t size);
+// Virtual memory deallocator.
+#define FreeMem GLASS_mem_virtualFree
+void GLASS_mem_virtualFree(void *p);
 
-// Memory deallocator.
-#define FreeMem(p) GLASS_mem_free((u8 *)(p))
-void GLASS_mem_free(void *p);
+// Linear memory allocator.
+#define AllocLinear GLASS_mem_linearAlloc
+void *GLASS_mem_linearAlloc(const size_t size);
+
+// Linear memory deallocator.
+#define FreeLinear GLASS_mem_linearFree
+void GLASS_mem_linearFree(void *p);
+
+// VRAM allocator.
+#define AllocVRAM GLASS_mem_vramAlloc
+void *GLASS_mem_vramAlloc(const size_t size, const vramAllocPos pos);
+
+// VRAM deallocator.
+#define FreeVRAM GLASS_mem_vramFree
+void GLASS_mem_vramFree(void *p);
 
 #define CopyMem(from, to, size)                                                \
   memcpy((void *)(to), (const void *)(from), (size))
