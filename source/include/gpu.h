@@ -63,6 +63,10 @@ void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
 #define UploadAttributes GLASS_gpu_uploadAttributes
 void GLASS_gpu_uploadAttributes(const AttributeInfo *attribs);
 
+// Upload all const uniforms.
+#define UploadConstUniforms GLASS_gpu_uploadConstUniforms
+void GLASS_gpu_uploadConstUniforms(const ShaderInfo *shader);
+
 // Upload all uniforms.
 #define UploadUniforms GLASS_gpu_uploadUniforms
 void GLASS_gpu_uploadUniforms(ShaderInfo *shader);
@@ -133,7 +137,7 @@ void GLASS_gpu_setBlendFunc(const GLenum rgbEq, const GLenum alphaEq,
 
 // Set blend color.
 #define SetBlendColor GLASS_gpu_setBlendColor
-void GLASS_gpu_setBlendColor(const uint32_t color);
+void GLASS_gpu_setBlendColor(const u32 color);
 
 // Set logic op.
 #define SetLogicOp GLASS_gpu_setLogicOp

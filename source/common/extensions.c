@@ -77,10 +77,10 @@ void glCombinerColorPICA(GLclampf red, GLclampf green, GLclampf blue,
   CtxImpl *ctx = GetContext();
   CombinerInfo *combiner = &ctx->combiners[ctx->combinerStage];
 
-  uint32_t color = (uint32_t)(0xFF * GLClampFloat(red)) << 24;
-  color |= (uint32_t)(0xFF * GLClampFloat(green)) << 16;
-  color |= (uint32_t)(0xFF * GLClampFloat(blue)) << 8;
-  color |= (uint32_t)(0xFF * GLClampFloat(alpha));
+  u32 color = (u32)(0xFF * GLClampFloat(red)) << 24;
+  color |= (u32)(0xFF * GLClampFloat(green)) << 16;
+  color |= (u32)(0xFF * GLClampFloat(blue)) << 8;
+  color |= (u32)(0xFF * GLClampFloat(alpha));
 
   if (combiner->color != color) {
     combiner->color = color;

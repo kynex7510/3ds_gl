@@ -166,9 +166,7 @@ void glGenBuffers(GLsizei n, GLuint *buffers) {
     }
 
     BufferInfo *info = (BufferInfo *)name;
-    info->address = NULL;
     info->usage = GL_STATIC_DRAW;
-    info->flags = 0;
     buffers[i] = name;
   }
 }

@@ -2,7 +2,7 @@
 
 // Types
 
-GLuint GLASS_types_createObject(const uint32_t type) {
+GLuint GLASS_types_createObject(const u32 type) {
   size_t objSize = 0;
 
   switch (type) {
@@ -26,7 +26,7 @@ GLuint GLASS_types_createObject(const uint32_t type) {
     return GLASS_INVALID_OBJECT;
   }
 
-  uint32_t *obj = AllocMem(objSize);
+  u32 *obj = AllocMem(objSize);
 
   if (obj) {
     *obj = type;
@@ -36,7 +36,7 @@ GLuint GLASS_types_createObject(const uint32_t type) {
   return GLASS_INVALID_OBJECT;
 }
 
-bool GLASS_types_checkObjectType(const GLuint obj, const uint32_t type) {
+bool GLASS_types_checkObjectType(const GLuint obj, const u32 type) {
   if (obj != GLASS_INVALID_OBJECT) {
 #ifndef NDEBUG
     MemInfo minfo;
@@ -45,7 +45,7 @@ bool GLASS_types_checkObjectType(const GLuint obj, const uint32_t type) {
     Assert(minfo.perm & MEMPERM_READ,
            "Attempted to read invalid memory location!");
 #endif
-    return *(uint32_t *)obj == type;
+    return *(u32 *)obj == type;
   }
 
   return false;

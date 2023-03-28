@@ -8,10 +8,10 @@
 // Helpers
 
 #define ReadFloats GLASS_attribs_readFloats
-static bool GLASS_attribs_readFloats(const AttributeInfo *attrib,
-                                     const GLenum pname, GLfloat *params) {
+static bool GLASS_attribs_readFloats(const size_t index, const GLenum pname,
+                                     GLfloat *params) {
   CtxImpl *ctx = GetContext();
-  const AttributeInfo *attrib = &ctx->attribs[i];
+  const AttributeInfo *attrib = &ctx->attribs[index];
 
   if (pname == GL_CURRENT_VERTEX_ATTRIB) {
     for (size_t i = 0; i < 4; i++)
@@ -26,14 +26,14 @@ static bool GLASS_attribs_readFloats(const AttributeInfo *attrib,
 static bool GLASS_attribs_readInt(const size_t index, const GLenum pname,
                                   GLint *param) {
   CtxImpl *ctx = GetContext();
-  const AttributeInfo *attrib = &ctx->attribs[i];
+  const AttributeInfo *attrib = &ctx->attribs[index];
 
   switch (pname) {
   case GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING:
     *param = attrib->boundBuffer;
     return true;
   case GL_VERTEX_ATTRIB_ARRAY_SIZE:
-    *param = attrib->size;
+    *param = attrib->count;
     return true;
   case GL_VERTEX_ATTRIB_ARRAY_STRIDE:
     *param = attrib->stride;
@@ -82,7 +82,8 @@ static void GLASS_attribs_setFixedAttrib(const GLuint reg, const size_t count,
 
 // Attribs
 
-void glBindAttribLocation(GLuint program, GLuint index, const GLchar *name); // TODO
+void glBindAttribLocation(GLuint program, GLuint index,
+                          const GLchar *name); // TODO
 
 void glDisableVertexAttribArray(GLuint index) {
   if (index >= GLASS_NUM_ATTRIB_REGS) {
@@ -151,7 +152,7 @@ void glGetVertexAttribiv(GLuint index, GLenum pname, GLint *params) {
   if (!ReadInt(index, pname, params)) {
     GLfloat components[4];
 
-    if (!ReadFloats(index, name, params)) {
+    if (!ReadFloats(index, pname, components)) {
       SetError(GL_INVALID_ENUM);
       return;
     }
@@ -184,7 +185,7 @@ void glGetVertexAttribPointerv(GLuint index, GLenum pname, GLvoid **pointer) {
     // Remove buffer base if required.
     if (attrib->boundBuffer) {
       BufferInfo *binfo = (BufferInfo *)attrib->boundBuffer;
-      virtAddr -= binfo->address;
+      virtAddr -= (u32)binfo->address;
     }
   }
 
@@ -243,7 +244,7 @@ void glVertexAttribPointer(GLuint index, GLint size, GLenum type,
   }
 
   CtxImpl *ctx = GetContext();
-  AttributeInfo *attrib = ctx->attribs[index];
+  AttributeInfo *attrib = &ctx->attribs[index];
 
   // Get vertex buffer physical address.
   u32 physAddr = 0;

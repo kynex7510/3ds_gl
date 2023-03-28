@@ -255,10 +255,6 @@ void glGenFramebuffers(GLsizei n, GLuint *framebuffers) {
       return;
     }
 
-    FramebufferInfo *info = (FramebufferInfo *)name;
-    info->colorBuffer = NULL;
-    info->depthBuffer = NULL;
-    info->flags = 0;
     framebuffers[i] = name;
   }
 }
@@ -280,11 +276,7 @@ void glGenRenderbuffers(GLsizei n, GLuint *renderbuffers) {
     }
 
     RenderbufferInfo *info = (RenderbufferInfo *)name;
-    info->address = NULL;
-    info->width = 0;
-    info->height = 0;
     info->format = GL_RGBA4;
-    info->flags = 0;
     renderbuffers[i] = name;
   }
 }

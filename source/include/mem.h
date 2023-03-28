@@ -19,7 +19,7 @@ void GLASS_mem_setAllocator(const glassAllocator allocator,
 void *GLASS_mem_alloc(const size_t size);
 
 // Memory deallocator.
-#define FreeMem(p) GLASS_mem_free((uint8_t *)(p))
+#define FreeMem(p) GLASS_mem_free((u8 *)(p))
 void GLASS_mem_free(void *p);
 
 #define CopyMem(from, to, size)                                                \

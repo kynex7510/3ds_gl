@@ -12,10 +12,9 @@
 
 // Helpers
 
+/*
 #define ExtractOffset GLASS_uniforms_extractOffset
 static size_t GLASS_uniforms_extractOffset(const char *name) {
-  size_t offset = 0;
-
   const char *beg = strstr(name, "[");
   if (!beg)
     return 0;
@@ -31,8 +30,8 @@ static size_t GLASS_uniforms_extractOffset(const char *name) {
 static GLint GLASS_uniforms_lookupUniform(const ShaderInfo *shader,
                                           const char *name,
                                           const size_t offset) {
-  for (size_t i = 0; i < vshad->numOfUniforms; i++) {
-    const UniformInfo *info = &vshad->uniformInfo[i];
+  for (size_t i = 0; i < shader->numOfUniforms; i++) {
+    const UniformInfo *uni = &shader->activeUniforms[i];
     if (!uni->symbol)
       continue;
 
@@ -48,8 +47,7 @@ static GLint GLASS_uniforms_lookupUniform(const ShaderInfo *shader,
 
   return -1;
 }
-
-static void SetFloat(UniformInfo *info) {}
+*/
 
 // Uniforms
 
@@ -61,6 +59,8 @@ void glGetUniformfv(GLuint program, GLint location, GLfloat *params); // TODO
 void glGetUniformiv(GLuint program, GLint location, GLint *params);   // TODO
 
 GLint glGetUniformLocation(GLuint program, const GLchar *name) {
+
+  /*
   if (!ObjectIsProgram(program)) {
     SetError(GL_INVALID_OPERATION);
     return;
@@ -82,6 +82,8 @@ GLint glGetUniformLocation(GLuint program, const GLchar *name) {
     loc = LookupUniform(gshad, name);
 
   return loc;
+  */
+  return -1;
 }
 
 void glUniform1f(GLint location, GLfloat v0) {
@@ -125,6 +127,7 @@ void glUniform4i(GLint location, GLint v0, GLint v1, GLint v2, GLint v3) {
   glUniform4iv(location, 1, values);
 }
 
+/*
 void glUniform1fv(GLint location, GLsizei count, const GLfloat *value) {
   SetFloat((UniformInfo *)location, value, 1, count);
 }
@@ -156,6 +159,7 @@ void glUniform3iv(GLint location, GLsizei count, const GLint *value) {
 void glUniform4iv(GLint location, GLsizei count, const GLint *value) {
   SetInt(location, value, 4, count);
 }
+*/
 
 void glUniformMatrix2fv(GLint location, GLsizei count, GLboolean transpose,
                         const GLfloat *value); // TODO

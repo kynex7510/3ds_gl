@@ -60,10 +60,10 @@ void glAlphaFunc(GLenum func, GLclampf ref) {
 void glBlendColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) {
   CtxImpl *ctx = GetContext();
 
-  uint32_t blendColor = (uint32_t)(0xFF * GLClampFloat(red)) << 24;
-  blendColor |= (uint32_t)(0xFF * GLClampFloat(green)) << 16;
-  blendColor |= (uint32_t)(0xFF * GLClampFloat(blue)) << 8;
-  blendColor |= (uint32_t)(0xFF * GLClampFloat(alpha));
+  u32 blendColor = (u32)(0xFF * GLClampFloat(red)) << 24;
+  blendColor |= (u32)(0xFF * GLClampFloat(green)) << 16;
+  blendColor |= (u32)(0xFF * GLClampFloat(blue)) << 8;
+  blendColor |= (u32)(0xFF * GLClampFloat(alpha));
 
   if (ctx->blendColor != blendColor) {
     ctx->blendColor = blendColor;

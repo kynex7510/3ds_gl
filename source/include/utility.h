@@ -12,15 +12,22 @@
 #define Min(x, y) (((x) < (y)) ? (x) : (y))
 #define Max(x, y) (((x) > (y)) ? (x) : (y))
 
-#if defined(NDEBUG)
-#include <assert.h>
-#define Assert(cond, msg) assert((cond) && (msg))
+#ifndef NDEBUG
+#define Assert(cond, msg)                                                      \
+  do {                                                                         \
+    if (!(cond))                                                               \
+      Unreachable((msg));                                                      \
+  } while (false)
 #else
 #define Assert(cond, msg)
 #endif
 
+// Log implementation.
+#define Log GLASS_utility_log
+void GLASS_utility_log(const char *msg);
+
 // Unreachable implementation.
-#define Unreachable(msg) GLASS_utility_unreachable((msg))
+#define Unreachable GLASS_utility_unreachable
 void GLASS_utility_unreachable(const char *msg) NORETURN;
 
 #define osConvertPhysToVirt GLASS_utility_convertPhysToVirt
@@ -36,12 +43,12 @@ float GLASS_utility_f24tof32(const u32 f);
 
 // Convert RGBA8 color into other formats.
 #define ConvertRGBA8 GLASS_utility_convertRGBA8
-uint32_t GLASS_utility_convertRGBA8(const GLenum format, const uint32_t color);
+u32 GLASS_utility_convertRGBA8(const GLenum format, const u32 color);
 
 // Get raw clear depth value.
 #define GetClearDepth GLASS_utility_getClearDepth
-uint32_t GLASS_utility_getClearDepth(const GLenum format, const GLclampf factor,
-                                     const uint8_t stencil);
+u32 GLASS_utility_getClearDepth(const GLenum format, const GLclampf factor,
+                                const u8 stencil);
 
 // Clamp float value between 0.0 and 1.0.
 #define GLClampFloat GLASS_utility_GLClampFloat
@@ -125,43 +132,46 @@ u32 GLASS_utility_GLToGPUDrawType(const GLenum type);
 
 // Build flags for a display transfer.
 #define BuildTransferFlags GLASS_utility_buildTransferFlags
-uint32_t GLASS_utility_buildTransferFlags(const bool flipVertical,
-                                          const bool tilted, const bool rawCopy,
-                                          const GX_TRANSFER_FORMAT inputFormat,
-                                          const GX_TRANSFER_FORMAT outputFormat,
-                                          const GX_TRANSFER_SCALE scaling);
+u32 GLASS_utility_buildTransferFlags(const bool flipVertical, const bool tilted,
+                                     const bool rawCopy,
+                                     const GX_TRANSFER_FORMAT inputFormat,
+                                     const GX_TRANSFER_FORMAT outputFormat,
+                                     const GX_TRANSFER_SCALE scaling);
 
 // Clear color-depth buffers with the specified value.
 #define ClearBuffers GLASS_utility_clearBuffers
 void GLASS_utility_clearBuffers(RenderbufferInfo *colorBuffer,
-                                const uint32_t clearColor,
+                                const u32 clearColor,
                                 RenderbufferInfo *depthBuffer,
-                                const uint32_t clearDepth);
+                                const u32 clearDepth);
 
 // Copy a color buffer to the specified display buffer.
 #define TransferBuffer GLASS_utility_transferBuffer
 void GLASS_utility_transferBuffer(const RenderbufferInfo *colorBuffer,
                                   const RenderbufferInfo *displayBuffer,
-                                  const uint32_t flags);
+                                  const u32 flags);
+
+// Pack int values into vector.
+#define PackIntVector GLASS_utility_packIntVector
+void GLASS_utility_packIntVector(const u32 *in, u32 *out);
+
+// Pack float values into float24 vector.
+#define PackFloatVector GLASS_utility_packFloatVector
+void GLASS_utility_packFloatVector(const float *in, u32 *out);
 
 // Set boolean (array) uniform.
-#define SetUniformBool GLASS_utility_setUniformBool
-void GLASS_utility_setUniformBool(UniformInfo *info, const uint16_t mask);
+#define SetBoolUniform GLASS_utility_setBoolUniform
+void GLASS_utility_setBoolUniform(UniformInfo *info, const u16 mask,
+                                  const size_t offset, const size_t size);
 
 // Set int (array) uniform.
-#define SetUniformInt GLASS_utility_setUniformInt
-void GLASS_utility_setUniformInts(UniformInfo *info, const uint32_t *values);
+#define SetIntUniform GLASS_utility_setIntUniform
+void GLASS_utility_setIntUniform(UniformInfo *info, const u32 *vectorData,
+                                 const size_t offset, const size_t size);
 
 // Set float (array) uniform.
-#define SetUniformFloat GLASS_utility_setUniformFloat
-void GLASS_utility_setUniformFloat(UniformInfo *info, const float *values);
-
-// Reset dirty flag for all uniforms of a shader.
-#define CleanUniforms GLASS_utility_cleanUniforms
-void GLASS_utility_cleanUniforms(ShaderInfo *shader);
-
-// Pack fixed attribute components.
-#define PackFixedAttrib GLASS_utility_packFixedAttrib
-void GLASS_utility_packFixedAttrib(const GLfloat *components, u32 *out);
+#define SetFloatUniform GLASS_utility_setFloatUniform
+void GLASS_utility_setFloatUniform(UniformInfo *info, const u32 *vectorData,
+                                   const size_t offset, const size_t size);
 
 #endif /* _GLASS_UTILITY_H */

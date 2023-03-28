@@ -61,47 +61,74 @@ static void GLASS_gpu_uploadShaderBinary(const ShaderInfo *shader) {
 
 #define UploadBoolUniformMask GLASS_gpu_uploadBoolUniformMask
 static void GLASS_gpu_uploadBoolUniformMask(const ShaderInfo *shader,
-                                            const uint16_t mask) {
-  const uint32_t reg = (shader->flags & SHADER_FLAG_GEOMETRY)
-                           ? GPUREG_GSH_BOOLUNIFORM
-                           : GPUREG_VSH_BOOLUNIFORM;
+                                            const u16 mask) {
+  const u32 reg = (shader->flags & SHADER_FLAG_GEOMETRY)
+                      ? GPUREG_GSH_BOOLUNIFORM
+                      : GPUREG_VSH_BOOLUNIFORM;
   GPUCMD_AddWrite(reg, 0x7FFF0000 | mask);
+}
+
+#define UploadConstIntUniforms GLASS_gpu_uploadConstIntUniforms
+static void GLASS_gpu_uploadConstIntUniforms(const ShaderInfo *shader) {
+  const u32 reg = (shader->flags & SHADER_FLAG_GEOMETRY)
+                      ? GPUREG_GSH_INTUNIFORM_I0
+                      : GPUREG_VSH_INTUNIFORM_I0;
+
+  for (size_t i = 0; i < 4; i++) {
+    if (!((shader->constIntMask >> i) & 1))
+      continue;
+
+    GPUCMD_AddWrite(reg + i, shader->constIntData[i]);
+  }
 }
 
 #define UploadIntUniform GLASS_gpu_uploadIntUniform
 static void GLASS_gpu_uploadIntUniform(const ShaderInfo *shader,
                                        UniformInfo *info) {
-  const uint32_t reg = (shader->flags & SHADER_FLAG_GEOMETRY)
-                           ? GPUREG_GSH_INTUNIFORM_I0
-                           : GPUREG_VSH_INTUNIFORM_I0;
+  const u32 reg = (shader->flags & SHADER_FLAG_GEOMETRY)
+                      ? GPUREG_GSH_INTUNIFORM_I0
+                      : GPUREG_VSH_INTUNIFORM_I0;
 
   if (info->count == 1) {
     GPUCMD_AddWrite(reg + info->ID, info->data.value);
   } else {
     GPUCMD_AddWrites(reg + info->ID, info->data.values, info->count);
   }
+}
 
-  info->dirty = false;
+#define UploadConstFloatUniforms GLASS_gpu_uploadConstFloatUniforms
+static void GLASS_gpu_uploadConstFloatUniforms(const ShaderInfo *shader) {
+  const u32 idReg = (shader->flags & SHADER_FLAG_GEOMETRY)
+                        ? GPUREG_GSH_FLOATUNIFORM_CONFIG
+                        : GPUREG_VSH_FLOATUNIFORM_CONFIG;
+
+  const u32 dataReg = (shader->flags & SHADER_FLAG_GEOMETRY)
+                          ? GPUREG_GSH_FLOATUNIFORM_DATA
+                          : GPUREG_VSH_FLOATUNIFORM_DATA;
+
+  for (size_t i = 0; i < shader->numOfConstFloatUniforms; i++) {
+    const ConstFloatInfo *uni = &shader->constFloatUniforms[i];
+    GPUCMD_AddWrite(idReg, uni->ID);
+    GPUCMD_AddIncrementalWrites(dataReg, uni->data, 3);
+  }
 }
 
 #define UploadFloatUniform GLASS_gpu_uploadFloatUniform
 static void GLASS_gpu_uploadFloatUniform(const ShaderInfo *shader,
                                          UniformInfo *info) {
-  const uint32_t idReg = (shader->flags & SHADER_FLAG_GEOMETRY)
-                             ? GPUREG_GSH_FLOATUNIFORM_CONFIG
-                             : GPUREG_VSH_FLOATUNIFORM_CONFIG;
+  const u32 idReg = (shader->flags & SHADER_FLAG_GEOMETRY)
+                        ? GPUREG_GSH_FLOATUNIFORM_CONFIG
+                        : GPUREG_VSH_FLOATUNIFORM_CONFIG;
 
-  const uint32_t dataReg = (shader->flags & SHADER_FLAG_GEOMETRY)
-                               ? GPUREG_GSH_FLOATUNIFORM_DATA
-                               : GPUREG_VSH_FLOATUNIFORM_DATA;
+  const u32 dataReg = (shader->flags & SHADER_FLAG_GEOMETRY)
+                          ? GPUREG_GSH_FLOATUNIFORM_DATA
+                          : GPUREG_VSH_FLOATUNIFORM_DATA;
 
   // ID is automatically incremented after each write.
   GPUCMD_AddWrite(idReg, info->ID);
 
   for (size_t i = 0; i < info->count; i++)
     GPUCMD_AddIncrementalWrites(dataReg, &info->data.values[i * 3], 3);
-
-  info->dirty = false;
 }
 
 // GPU
@@ -124,8 +151,7 @@ void GLASS_gpu_fini(CtxImpl *ctx) {
   Assert(ctx, "Context was nullptr!");
 
   // Free GX command queue.
-  if (ctx->gxQueue.entries)
-    FreeMem(ctx->gxQueue.entries);
+  FreeMem(ctx->gxQueue.entries);
 
   // Free GPU command buffer.
   if (ctx->cmdBuffer)
@@ -184,10 +210,10 @@ void GLASS_gpu_flushAndRunCommands(CtxImpl *ctx) {
 }
 
 void GLASS_gpu_bindFramebuffer(const FramebufferInfo *info, bool block32) {
-  uint8_t *colorBuffer = NULL;
-  uint8_t *depthBuffer = NULL;
-  uint32_t width = 0;
-  uint32_t height = 0;
+  u8 *colorBuffer = NULL;
+  u8 *depthBuffer = NULL;
+  u32 width = 0;
+  u32 height = 0;
   GLenum colorFormat = 0;
   GLenum depthFormat = 0;
   u32 params[4];
@@ -255,7 +281,7 @@ void GLASS_gpu_invalidateFramebuffer(void) {
 
 void GLASS_gpu_setViewport(const GLint x, const GLint y, const GLsizei width,
                            const GLsizei height) {
-  uint32_t data[4];
+  u32 data[4];
 
   data[0] = f32tof24(height / 2.0f);
   data[1] = f32tof31(2.0f / height) << 1;
@@ -316,17 +342,17 @@ void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
   }
 
   // Handle outmaps.
-  uint16_t mergedOutTotal = 0;
-  uint32_t mergedOutClock = 0;
-  uint32_t mergedOutSems[7];
+  u16 mergedOutTotal = 0;
+  u32 mergedOutClock = 0;
+  u32 mergedOutSems[7];
   bool useTexcoords = false;
 
   if (vertexShader && geometryShader &&
       (geometryShader->flags & SHADER_FLAG_MERGE_OUTMAPS)) {
     // Merge outmaps.
     for (size_t i = 0; i < 7; i++) {
-      const uint32_t vshOutSem = vertexShader->outSems[i];
-      uint32_t gshOutSem = geometryShader->outSems[i];
+      const u32 vshOutSem = vertexShader->outSems[i];
+      u32 gshOutSem = geometryShader->outSems[i];
 
       if (vshOutSem != gshOutSem) {
         gshOutSem = gshOutSem != 0x1F1F1F1F ? gshOutSem : vshOutSem;
@@ -346,7 +372,7 @@ void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
         geometryShader ? geometryShader : vertexShader;
     if (mainShader) {
       mergedOutTotal = mainShader->outTotal;
-      CopyMem(mainShader->outSems, mergedOutSems, 7 * sizeof(uint32_t));
+      CopyMem(mainShader->outSems, mergedOutSems, 7 * sizeof(u32));
       mergedOutClock = mainShader->outClock;
       useTexcoords = mainShader->flags & SHADER_FLAG_USE_TEXCOORDS;
     }
@@ -375,7 +401,7 @@ void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
                           : 0);
 
       // Set processing mode.
-      uint32_t param = geometryShader->gsMode;
+      u32 param = geometryShader->gsMode;
       GPUCMD_AddWrite(GPUREG_GSH_MISC0, param);
 
       // Set input.
@@ -395,11 +421,24 @@ void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
   }
 }
 
+void GLASS_gpu_uploadConstUniforms(const ShaderInfo *shader) {
+  Assert(shader, "Shader was nullptr!");
+
+  if (!(shader->flags & SHADER_FLAG_DIRTY))
+    UploadBoolUniformMask(shader, shader->constBoolMask);
+
+  UploadConstIntUniforms(shader);
+  UploadConstFloatUniforms(shader);
+}
+
 void GLASS_gpu_uploadUniforms(ShaderInfo *shader) {
   Assert(shader, "Shader was nullptr!");
 
-  uint16_t boolMask = 0;
-  for (size_t i = 0; i < shader->numOfUniforms; i++) {
+  if (!(shader->flags & SHADER_FLAG_DIRTY))
+    return;
+
+  u16 boolMask = shader->constBoolMask;
+  for (size_t i = 0; i < shader->numOfActiveUniforms; i++) {
     UniformInfo *uni = &shader->activeUniforms[i];
 
     if (!uni->dirty)
@@ -408,7 +447,6 @@ void GLASS_gpu_uploadUniforms(ShaderInfo *shader) {
     switch (uni->type) {
     case GLASS_UNI_BOOL:
       boolMask |= uni->data.mask;
-      uni->dirty = false;
       break;
     case GLASS_UNI_INT:
       UploadIntUniform(shader, uni);
@@ -419,9 +457,12 @@ void GLASS_gpu_uploadUniforms(ShaderInfo *shader) {
     default:
       Unreachable("Invalid uniform type!");
     }
+
+    uni->dirty = false;
   }
 
   UploadBoolUniformMask(shader, boolMask);
+  shader->flags &= ~SHADER_FLAG_DIRTY;
 }
 
 /*
@@ -490,8 +531,8 @@ void GLASS_gpu_uploadAttributes(const AttributeInfo *attribs,
         u32 params[3];
         params[0] = attrib->physAddr - base;
         params[1] = 0; // TODO
-        params[2] = ((u8)attrib->stride << 16) | ((u8)attrib->count << 28);
-        GPUCMD_AddIncrementalWrites(GPUREG_ATTRIBBUFFER0_OFFSET + (i * 0x03),
+        params[2] = ((u8)attrib->stride << 16) | ((u8)attrib->count <<
+28); GPUCMD_AddIncrementalWrites(GPUREG_ATTRIBBUFFER0_OFFSET + (i * 0x03),
                                     params, 3);
       } else {
         u32 packed[3];
@@ -563,8 +604,8 @@ void GLASS_gpu_setColorDepthMask(const bool writeRed, const bool writeGreen,
                                  const bool writeBlue, const bool writeAlpha,
                                  const bool writeDepth, const bool depthTest,
                                  const GLenum depthFunc) {
-  uint32_t value = ((writeRed ? 0x0100 : 0x00) | (writeGreen ? 0x0200 : 0x00) |
-                    (writeBlue ? 0x0400 : 0x00) | (writeAlpha ? 0x0800 : 0x00));
+  u32 value = ((writeRed ? 0x0100 : 0x00) | (writeGreen ? 0x0200 : 0x00) |
+               (writeBlue ? 0x0400 : 0x00) | (writeAlpha ? 0x0800 : 0x00));
 
   if (depthTest) {
     value |=
@@ -619,12 +660,12 @@ void GLASS_gpu_clearEarlyDepthBuffer(void) {
 void GLASS_gpu_setStencilTest(const bool enabled, const GLenum func,
                               const GLint ref, const GLuint mask,
                               const GLuint writeMask) {
-  uint32_t value = enabled ? 1 : 0;
+  u32 value = enabled ? 1 : 0;
   if (enabled) {
     value |= (GLToGPUTestFunc(func) << 4);
-    value |= ((uint8_t)writeMask << 8);
+    value |= ((u8)writeMask << 8);
     value |= ((int8_t)ref << 16);
-    value |= ((uint8_t)mask << 24);
+    value |= ((u8)mask << 24);
   }
 
   GPUCMD_AddWrite(GPUREG_STENCIL_TEST, value);
@@ -653,10 +694,10 @@ void GLASS_gpu_setCullFace(const bool enabled, const GLenum cullFace,
 void GLASS_gpu_setAlphaTest(const bool enabled, const GLenum func,
                             const GLclampf ref) {
   Assert(ref >= 0.0f && ref <= 1.0f, "Invalid reference value!");
-  uint32_t value = enabled ? 1 : 0;
+  u32 value = enabled ? 1 : 0;
   if (enabled) {
     value |= (GLToGPUTestFunc(func) << 4);
-    value |= ((uint8_t)(ref * 0xFF) << 8);
+    value |= ((u8)(ref * 0xFF) << 8);
   }
 
   GPUCMD_AddMaskedWrite(GPUREG_FRAGOP_ALPHA_TEST, 0x03, value);
@@ -678,7 +719,7 @@ void GLASS_gpu_setBlendFunc(const GLenum rgbEq, const GLenum alphaEq,
                                          (gpuAlphaEq << 8) | gpuRGBEq);
 }
 
-void GLASS_gpu_setBlendColor(const uint32_t color) {
+void GLASS_gpu_setBlendColor(const u32 color) {
   GPUCMD_AddWrite(GPUREG_BLEND_COLOR, color);
 }
 

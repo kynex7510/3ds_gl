@@ -61,7 +61,7 @@ void GLASS_context_initContext(CtxImpl *ctx) {
     attrib->count = 4;
     attrib->stride = 0;
     attrib->boundBuffer = 0;
-    attrib->offset = 0;
+    attrib->physAddr = 0;
     attrib->components[0] = 0.0f;
     attrib->components[1] = 0.0f;
     attrib->components[2] = 0.0f;
@@ -240,10 +240,12 @@ CtxImpl *GLASS_context_updateContext(void) {
   }
 
   // Handle attributes.
+  /*
   if (g_Context->flags & CONTEXT_FLAG_ATTRIBS) {
     UploadAttributes(g_Context->attribs, g_Context->attribSlots);
     g_Context->flags &= ~CONTEXT_FLAG_ATTRIBS;
   }
+  */
 
   // Handle program.
   if (g_Context->flags & CONTEXT_FLAG_PROGRAM) {
@@ -265,41 +267,31 @@ CtxImpl *GLASS_context_updateContext(void) {
       BindShaders(vs, gs);
 
       if (vs)
-        g_Context->flags |= CONTEXT_FLAG_VERTEX_UNIFORMS;
+        UploadConstUniforms(vs);
 
       if (gs)
-        g_Context->flags |= CONTEXT_FLAG_GEOMETRY_UNIFORMS;
+        UploadConstUniforms(gs);
+
+      g_Context->flags |= CONTEXT_FLAG_UNIFORMS;
     }
 
     g_Context->flags &= ~CONTEXT_FLAG_PROGRAM;
   }
 
-  // Handle vertex uniforms.
-  if (g_Context->flags & CONTEXT_FLAG_VERTEX_UNIFORMS) {
+  // Handle uniforms.
+  if (g_Context->flags & CONTEXT_FLAG_UNIFORMS) {
     ProgramInfo *pinfo = (ProgramInfo *)g_Context->currentProgram;
     if (pinfo) {
       ShaderInfo *vs = (ShaderInfo *)pinfo->linkedVertex;
-      if (vs) {
+      if (vs)
         UploadUniforms(vs);
-        ResetDirtyUniforms(vs);
-      }
-    }
 
-    g_Context->flags &= ~CONTEXT_FLAG_VERTEX_UNIFORMS;
-  }
-
-  // Handle geometry uniforms.
-  if (g_Context->flags & CONTEXT_FLAG_GEOMETRY_UNIFORMS) {
-    ProgramInfo *pinfo = (ProgramInfo *)g_Context->currentProgram;
-    if (pinfo) {
       ShaderInfo *gs = (ShaderInfo *)pinfo->linkedGeometry;
-      if (gs) {
+      if (gs)
         UploadUniforms(gs);
-        ResetDirtyUniforms(gs);
-      }
     }
 
-    g_Context->flags &= ~CONTEXT_FLAG_GEOMETRY_UNIFORMS;
+    g_Context->flags &= ~CONTEXT_FLAG_UNIFORMS;
   }
 
   // Handle combiners.
@@ -357,9 +349,10 @@ CtxImpl *GLASS_context_updateContext(void) {
     SetStencilTest(g_Context->stencilTest, g_Context->stencilFunc,
                    g_Context->stencilRef, g_Context->stencilMask,
                    g_Context->stencilWriteMask);
-    if (g_Context->stencilTest)
+    if (g_Context->stencilTest) {
       SetStencilOp(g_Context->stencilFail, g_Context->stencilDepthFail,
                    g_Context->stencilPass);
+    }
     g_Context->flags &= ~CONTEXT_FLAG_STENCIL;
   }
 

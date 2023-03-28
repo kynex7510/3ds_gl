@@ -72,10 +72,10 @@ void glClear(GLbitfield mask) {
 
 void glClearColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) {
   CtxImpl *ctx = GetContext();
-  ctx->clearColor = (uint32_t)(0xFF * GLClampFloat(red)) << 24;
-  ctx->clearColor |= (uint32_t)(0xFF * GLClampFloat(green)) << 16;
-  ctx->clearColor |= (uint32_t)(0xFF * GLClampFloat(blue)) << 8;
-  ctx->clearColor |= (uint32_t)(0xFF * GLClampFloat(alpha));
+  ctx->clearColor = (u32)(0xFF * GLClampFloat(red)) << 24;
+  ctx->clearColor |= (u32)(0xFF * GLClampFloat(green)) << 16;
+  ctx->clearColor |= (u32)(0xFF * GLClampFloat(blue)) << 8;
+  ctx->clearColor |= (u32)(0xFF * GLClampFloat(alpha));
 }
 
 void glClearDepthf(GLclampf depth) {
@@ -85,7 +85,7 @@ void glClearDepthf(GLclampf depth) {
 
 void glClearStencil(GLint s) {
   CtxImpl *ctx = GetContext();
-  ctx->clearStencil = (uint8_t)s;
+  ctx->clearStencil = (u8)s;
 }
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count) {
