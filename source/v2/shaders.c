@@ -60,11 +60,26 @@ typedef struct {
   u32 numOfOutRegs;                    // Size of output register table.
   DVLE_uniformEntry_s *activeUniforms; // Uniform table.
   u32 numOfActiveUniforms;             // Size of uniform table.
-  u8 *symbolTable;                     // Symbol table.
+  char *symbolTable;                   // Symbol table.
   u32 sizeOfSymbolTable;               // Size of symbol table.
 } DVLEInfo;
 
 // Helpers
+
+#define FreeUniformData GLASS_shaders_freeUniformData
+static void GLASS_shaders_freeUniformData(ShaderInfo *shader) {
+  Assert(shader, "Shader was nullptr!");
+
+  for (size_t i = 0; i < shader->numOfActiveUniforms; i++) {
+    UniformInfo *uni = &shader->activeUniforms[i];
+    if (uni->type == GLASS_UNI_FLOAT ||
+        (uni->type == GLASS_UNI_INT && uni->count > 1))
+      FreeMem(uni->data.values);
+  }
+
+  FreeMem(shader->constFloatUniforms);
+  FreeMem(shader->activeUniforms);
+}
 
 #define DecSharedDataRefc GLASS_shaders_decSharedDataRefc
 static void GLASS_shaders_decSharedDataRefc(SharedShaderData *sharedData) {
@@ -91,15 +106,7 @@ static void GLASS_shaders_decShaderRefc(ShaderInfo *shader) {
     if (shader->sharedData)
       DecSharedDataRefc(shader->sharedData);
 
-    for (size_t i = 0; i < shader->numOfActiveUniforms; i++) {
-      UniformInfo *uni = &shader->activeUniforms[i];
-      if (uni->type == GLASS_UNI_FLOAT ||
-          (uni->type == GLASS_UNI_INT && uni->count > 1))
-        FreeMem(uni->data.values);
-    }
-
-    FreeMem(shader->constFloatUniforms);
-    FreeMem(shader->activeUniforms);
+    FreeUniformData(shader);
     FreeMem(shader);
   }
 }
@@ -158,12 +165,12 @@ static size_t GLASS_shaders_numActiveUniforms(ProgramInfo *info) {
 
   size_t numOfActiveUniforms = 0;
 
-  if (info->linkedVertex) {
+  if (ObjectIsShader(info->linkedVertex)) {
     ShaderInfo *vshad = (ShaderInfo *)info->linkedVertex;
     numOfActiveUniforms = vshad->numOfActiveUniforms;
   }
 
-  if (info->linkedGeometry) {
+  if (ObjectIsShader(info->linkedGeometry)) {
     ShaderInfo *gshad = (ShaderInfo *)info->linkedGeometry;
     numOfActiveUniforms += gshad->numOfActiveUniforms;
   }
@@ -173,21 +180,33 @@ static size_t GLASS_shaders_numActiveUniforms(ProgramInfo *info) {
 
 #define LenActiveUniforms GLASS_shaders_lenActiveUniforms
 static size_t GLASS_shaders_lenActiveUniforms(ProgramInfo *info) {
-  // TODO
-  /*
-    Assert(info, "Info was nullptr!");
+  Assert(info, "Info was nullptr!");
 
-    size_t lenOfActiveUniforms = 0;
+  size_t lenOfActiveUniforms = 0;
 
-    if (info->linkedVertex) {
-      ShaderInfo *vshad = (ShaderInfo *)info->linkedVertex;
-      for (size_t i = 0; i < vshad->numOfUniforms; i++) {
-        const UniformInfo *uni = &vshad->activeUniforms[i];
-        if (!vshad->activeUniforms[i].symbol)
+  if (ObjectIsShader(info->linkedVertex)) {
+    // Look in vertex shader.
+    ShaderInfo *vshad = (ShaderInfo *)info->linkedVertex;
+    for (size_t i = 0; i < vshad->numOfActiveUniforms; i++) {
+      const UniformInfo *uni = &vshad->activeUniforms[i];
+      const size_t len = strlen(uni->symbol);
+      if (len > lenOfActiveUniforms)
+        lenOfActiveUniforms = len;
+    }
+
+    // Look in geometry shader.
+    if (ObjectIsShader(info->linkedGeometry)) {
+      ShaderInfo *gshad = (ShaderInfo *)info->linkedGeometry;
+      for (size_t i = 0; i < gshad->numOfActiveUniforms; i++) {
+        const UniformInfo *uni = &gshad->activeUniforms[i];
+        const size_t len = strlen(uni->symbol);
+        if (len > lenOfActiveUniforms)
+          lenOfActiveUniforms = len;
       }
     }
-  */
-  return 0;
+  }
+
+  return lenOfActiveUniforms;
 }
 
 #define LookupShader GLASS_shaders_lookupShader
@@ -391,7 +410,7 @@ static void GLASS_shaders_getDVLEInfo(const u8 *data, const size_t size,
   out->constUniforms = (DVLEConstEntry *)offsetToConstTable;
   out->outRegs = (DVLE_outEntry_s *)offsetToOutTable;
   out->activeUniforms = (DVLE_uniformEntry_s *)offsetToUniformTable;
-  out->symbolTable = (u8 *)offsetToSymbolTable;
+  out->symbolTable = (char *)offsetToSymbolTable;
 }
 
 #define GenerateOutmaps GLASS_shaders_generateOutmaps
@@ -494,13 +513,12 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
   Assert(out, "Out was nullptr!");
 
   // Cleanup.
+  FreeUniformData(out);
   out->constBoolMask = 0;
   ZeroVar(out->constIntData);
   out->constIntMask = 0;
-  FreeMem(out->constFloatUniforms);
   out->constFloatUniforms = NULL;
   out->numOfConstFloatUniforms = 0;
-  FreeMem(out->activeUniforms);
   out->activeUniforms = NULL;
   out->numOfActiveUniforms = 0;
 
@@ -511,19 +529,24 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
 
     switch (constEntry->type) {
     case GLASS_UNI_BOOL:
-      Assert(constEntry->ID < 16, "Invalid const bool uniform ID!");
+      Assert(constEntry->ID < GLASS_NUM_BOOL_UNIFORMS,
+             "Invalid const bool uniform ID!");
       if (constEntry->data.boolUniform)
         out->constBoolMask |= (1 << constEntry->ID);
       break;
     case GLASS_UNI_INT:
-      Assert(constEntry->ID < 4, "Invalid const int uniform ID!");
+      Assert(constEntry->ID < GLASS_NUM_INT_UNIFORMS,
+             "Invalid const int uniform ID!");
       out->constIntData[constEntry->ID] = constEntry->data.intUniform;
       out->constIntMask |= (1 << constEntry->ID);
       break;
     case GLASS_UNI_FLOAT:
-      Assert(constEntry->ID < 96, "Invalid const float uniform ID!");
+      Assert(constEntry->ID < GLASS_NUM_FLOAT_UNIFORMS,
+             "Invalid const float uniform ID!");
       ++numOfConstFloatUniforms;
       break;
+    default:
+      Unreachable("Unknown const uniform type!");
     }
   }
 
@@ -561,19 +584,22 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
     UniformInfo *uni = &out->activeUniforms[i];
     const DVLE_uniformEntry_s *entry = &info->activeUniforms[i];
 
+    uni->ID = entry->startReg;
+    uni->count = (entry->endReg + 1) - entry->startReg;
+    uni->symbol = out->symbolTable + entry->symbolOffset;
+
+    // Handle bool.
     if (entry->startReg >= 0x78 && entry->startReg <= 0x87) {
-      Assert(entry->endReg <= 0x87, "Invalid bool uniform!");
-      uni->ID = entry->startReg;
+      Assert(entry->endReg <= 0x87, "Invalid bool uniform range!");
       uni->type = GLASS_UNI_BOOL;
-      uni->count = (entry->endReg + 1) - entry->startReg;
-      uni->symbol = out->symbolTable + entry->symbolOffset;
       uni->data.mask = 0;
-    } else if (entry->startReg >= 0x70 && entry->startReg <= 0x73) {
-      Assert(entry->endReg <= 0x73, "Invalid int uniform!");
-      uni->ID = entry->startReg;
+      continue;
+    }
+
+    // Handle int.
+    if (entry->startReg >= 0x70 && entry->startReg <= 0x73) {
+      Assert(entry->endReg <= 0x73, "Invalid int uniform range!");
       uni->type = GLASS_UNI_INT;
-      uni->count = (entry->endReg + 1) - entry->startReg;
-      uni->symbol = out->symbolTable + entry->symbolOffset;
 
       if (uni->count > 1) {
         uni->data.values = (u32 *)AllocMem(sizeof(u32) * uni->count);
@@ -582,18 +608,22 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
       } else {
         uni->data.value = 0;
       }
-    } else if (entry->startReg >= 0x10 && entry->startReg <= 0x6F) {
-      Assert(entry->endReg <= 0x6F, "Invalid float uniform!");
-      uni->ID = entry->startReg;
+
+      continue;
+    }
+
+    // Handle float.
+    if (entry->startReg >= 0x10 && entry->startReg <= 0x6F) {
+      Assert(entry->endReg <= 0x6F, "Invalid float uniform range!");
       uni->type = GLASS_UNI_FLOAT;
-      uni->count = (entry->endReg + 1) - entry->startReg;
-      uni->symbol = out->symbolTable + entry->symbolOffset;
       uni->data.values = (u32 *)AllocMem((sizeof(u32) * 3) * uni->count);
       if (!uni->data.values)
         return false;
-    } else {
-      Unreachable("Invalid uniform type!");
+
+      continue;
     }
+
+    Unreachable("Unknown uniform type!");
   }
 
   return true;
@@ -612,14 +642,14 @@ void glAttachShader(GLuint program, GLuint shader) {
 
   // Attach shader to program.
   if (sinfo->flags & SHADER_FLAG_GEOMETRY) {
-    if (pinfo->attachedGeometry != GLASS_INVALID_OBJECT) {
+    if (ObjectIsShader(pinfo->attachedGeometry)) {
       SetError(GL_INVALID_OPERATION);
       return;
     }
 
     pinfo->attachedGeometry = shader;
   } else {
-    if (pinfo->attachedVertex != GLASS_INVALID_OBJECT) {
+    if (ObjectIsShader(pinfo->attachedVertex)) {
       SetError(GL_INVALID_OPERATION);
       return;
     }
@@ -633,8 +663,7 @@ void glAttachShader(GLuint program, GLuint shader) {
 
 GLuint glCreateProgram(void) {
   GLuint name = CreateObject(GLASS_PROGRAM_TYPE);
-
-  if (name != GLASS_INVALID_OBJECT) {
+  if (ObjectIsProgram(name)) {
     ProgramInfo *info = (ProgramInfo *)name;
     info->attachedVertex = GLASS_INVALID_OBJECT;
     info->linkedVertex = GLASS_INVALID_OBJECT;
@@ -664,8 +693,7 @@ GLuint glCreateShader(GLenum shaderType) {
 
   // Create shader.
   GLuint name = CreateObject(GLASS_SHADER_TYPE);
-
-  if (name != GLASS_INVALID_OBJECT) {
+  if (ObjectIsShader(name)) {
     ShaderInfo *info = (ShaderInfo *)name;
     info->flags = flags;
     info->refc = 1;
@@ -738,17 +766,22 @@ void glGetAttachedShaders(GLuint program, GLsizei maxCount, GLsizei *count,
     return;
   }
 
+  if (maxCount < 0) {
+    SetError(GL_INVALID_VALUE);
+    return;
+  }
+
   ProgramInfo *info = (ProgramInfo *)program;
 
   // Get shaders.
-  if (info->attachedVertex != GLASS_INVALID_OBJECT) {
-    Assert(ObjectIsShader(info->attachedVertex), "Invalid vertex shader!");
-    shaders[shaderCount++] = info->attachedVertex;
+  if (shaderCount < maxCount) {
+    if (ObjectIsShader(info->attachedVertex))
+      shaders[shaderCount++] = info->attachedVertex;
   }
 
-  if ((info->attachedGeometry != GLASS_INVALID_OBJECT) && maxCount > 1) {
-    Assert(ObjectIsShader(info->attachedGeometry), "Invalid geometry shader!");
-    shaders[shaderCount++] = info->attachedGeometry;
+  if (shaderCount < maxCount) {
+    if (ObjectIsShader(info->attachedGeometry))
+      shaders[shaderCount++] = info->attachedGeometry;
   }
 
   // Get count.
@@ -781,11 +814,11 @@ void glGetProgramiv(GLuint program, GLenum pname, GLint *params) {
     *params = 0;
     break;
   case GL_ATTACHED_SHADERS:
-    if ((info->attachedVertex != GLASS_INVALID_OBJECT) &&
-        (info->attachedGeometry != GLASS_INVALID_OBJECT))
+    if (ObjectIsShader(info->attachedVertex) &&
+        ObjectIsShader(info->attachedGeometry))
       *params = 2;
-    else if ((info->attachedVertex != GLASS_INVALID_OBJECT) ||
-             (info->attachedGeometry != GLASS_INVALID_OBJECT))
+    else if (ObjectIsShader(info->attachedVertex) ||
+             ObjectIsShader(info->attachedGeometry))
       *params = 1;
     else
       *params = 0;
@@ -976,7 +1009,7 @@ void glShaderBinary(GLsizei n, const GLuint *shaders, GLenum binaryformat,
     shader->symbolTable = NULL;
     shader->sizeOfSymbolTable = 0;
 
-    shader->symbolTable = (u8 *)AllocMem(info.sizeOfSymbolTable);
+    shader->symbolTable = (char *)AllocMem(info.sizeOfSymbolTable);
     if (!shader->symbolTable) {
       SetError(GL_OUT_OF_MEMORY);
       goto glShaderBinary_skip;
@@ -1007,10 +1040,8 @@ void glShaderBinary(GLsizei n, const GLuint *shaders, GLenum binaryformat,
 
 glShaderBinary_skip:
   // Free resources.
-  if (sharedData) {
-    if (!sharedData->refc)
-      FreeMem(sharedData);
-  }
+  if (sharedData && !sharedData->refc)
+    FreeMem(sharedData);
 
   FreeMem(dvlb);
 }
@@ -1026,7 +1057,7 @@ void glUseProgram(GLuint program) {
   // Check if already in use.
   if (ctx->currentProgram != program) {
     // Check if program is linked.
-    if (program != GLASS_INVALID_OBJECT) {
+    if (ObjectIsProgram(program)) {
       ProgramInfo *info = (ProgramInfo *)program;
       if (info->flags & PROGRAM_FLAG_LINK_FAILED) {
         SetError(GL_INVALID_VALUE);
@@ -1035,7 +1066,7 @@ void glUseProgram(GLuint program) {
     }
 
     // Remove program.
-    if (ctx->currentProgram != GLASS_INVALID_OBJECT)
+    if (ObjectIsProgram(ctx->currentProgram))
       FreeProgram((ProgramInfo *)ctx->currentProgram);
 
     // Set program.

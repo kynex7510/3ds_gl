@@ -1,5 +1,7 @@
 # Details
 
+## Caveats
+
 - Fragment pipeline is not programmable.
 
 - `glBind*` functions will not create buffers when passing arbitrary buffer values, instead `glGen*` must be used for buffer creation.
@@ -14,7 +16,7 @@
 
 - The GPU has 16 input registers, but only 12 can be used at the same time for vertex attributes. `glEnableVertexAttribArray` will fail with `GL_OUT_OF_MEMORY` if all 12 slots are used; to use a different register call `glDisableVertexAttribArray` to disable one of the used registers first. 
 
-- It is possible to use `glUniform` on uniform variables where the size does not match that of the command. If the input size is greater, input values are discarded. If it's smaller, other component values are left unchanged.
+- It is possible to use `glUniform` on uniform variables where the number of components is greater than that of the command. The other component values will be left unchanged.
 
 ## Extensions
 
@@ -78,3 +80,27 @@ The GPU is capable of running early depth tests. `glEnable`/`glDisable` can be u
 ```
 
 This capability can be used to control inverted scissor test.
+
+## Allocator
+
+It is possible to manage allocations by defining the following functions:
+
+```c
+void *GLASS_virtualAlloc(const size_t size);
+void GLASS_virtualFree(void *p);
+void *GLASS_linearAlloc(const size_t size);
+void GLASS_linearFree(void *p);
+void *GLASS_vramAlloc(const size_t size, const vramAllocPos pos);
+void GLASS_vramFree(void *p);
+```
+
+In debug mode, hooks are called after each allocation/before each deallocation:
+
+```c
+void GLASS_virtualAllocHook(const void *p, const size_t size);
+void GLASS_virtualFreeHook(const void *p, const size_t size);
+void GLASS_linearAllocHook(const void *p, const size_t size);
+void GLASS_linearFreeHook(const void *p, const size_t size);
+void GLASS_vramAllocHook(const void *p, const size_t size);
+void GLASS_vramFreeHook(const void *p, const size_t size);
+```

@@ -247,6 +247,9 @@ typedef GLuint GLbitfield;
 
 #define GL_VERTEX_SHADER 0x8B31
 #define GL_SHADER_TYPE 0x8B4F
+#define GL_FLOAT_VEC4 0x8B52
+#define GL_INT_VEC4 0x8B55
+#define GL_BOOL 0x8B56
 #define GL_DELETE_STATUS 0x8B80
 #define GL_COMPILE_STATUS 0x8B81
 #define GL_LINK_STATUS 0x8B82

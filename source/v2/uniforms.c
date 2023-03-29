@@ -1,20 +1,28 @@
-/**
- *
- */
 #include "context.h"
 #include "utility.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-#define MAKE_LOC(id, offset) (((id) << 8) | (offset))
-#define UNWRAP_LOC(loc) (((loc) >> 8) + ((loc)&0xFF))
+#define CheckOffset(type, offset)                                              \
+  ((((type) == GLASS_UNI_BOOL) && ((offset) < 16)) ||                          \
+   (((type) == GLASS_UNI_INT) && ((offset) < 4)) ||                            \
+   (((type) == GLASS_UNI_FLOAT) && ((offset) < 96)))
 
 // Helpers
 
-/*
+#define MakeLocation GLASS_uniforms_makeLocation
+static GLint GLASS_uniforms_makeLocation(const size_t index,
+                                         const size_t offset,
+                                         const bool isGeometry) {
+  return (GLint)((isGeometry << 16) | (index << 8) | (offset & 0xFF));
+}
+
 #define ExtractOffset GLASS_uniforms_extractOffset
 static size_t GLASS_uniforms_extractOffset(const char *name) {
+  if (strstr(name, ".") || (strstr(name, "gl_") == name))
+    return -1;
+
   const char *beg = strstr(name, "[");
   if (!beg)
     return 0;
@@ -30,59 +38,123 @@ static size_t GLASS_uniforms_extractOffset(const char *name) {
 static GLint GLASS_uniforms_lookupUniform(const ShaderInfo *shader,
                                           const char *name,
                                           const size_t offset) {
-  for (size_t i = 0; i < shader->numOfUniforms; i++) {
+  for (size_t i = 0; i < shader->numOfActiveUniforms; i++) {
     const UniformInfo *uni = &shader->activeUniforms[i];
-    if (!uni->symbol)
-      continue;
-
-    if (strstr(uni->symbol, name) == uni->symbol) {
-      if (((uni->type == GLASS_UNI_BOOL) && (offset > 15)) ||
-          ((uni->type == GLASS_UNI_INT) && (offset > 3)) ||
-          ((uni->type == GLASS_UNI_FLOAT) && (offset > 95)))
+    if (strstr(name, uni->symbol) == name) {
+      if (!CheckOffset(uni->type, offset) || offset > uni->count)
         break;
 
-      return MAKE_LOC(i, offset);
+      return MakeLocation(i, offset, shader->flags & SHADER_FLAG_GEOMETRY);
     }
   }
 
   return -1;
 }
-*/
+
+#define SetInt GLASS_uniforms_setInt
+static void GLASS_uniforms_setInt(const GLint location, const GLint *values,
+                                  const size_t numOfComponents,
+                                  const size_t numOfElements) {}
+
+#define SetFloat GLASS_uniforms_setFloat
+static void GLASS_uniforms_setFloat(const GLint location, const GLfloat *values,
+                                    const size_t numOfComponents,
+                                    const size_t numOfElements) {}
 
 // Uniforms
 
 void glGetActiveUniform(GLuint program, GLuint index, GLsizei bufSize,
                         GLsizei *length, GLint *size, GLenum *type,
-                        GLchar *name); // TODO
+                        GLchar *name) {
+  if (bufSize)
+    Assert(name, "Name was nullptr!");
 
-void glGetUniformfv(GLuint program, GLint location, GLfloat *params); // TODO
-void glGetUniformiv(GLuint program, GLint location, GLint *params);   // TODO
-
-GLint glGetUniformLocation(GLuint program, const GLchar *name) {
-
-  /*
   if (!ObjectIsProgram(program)) {
     SetError(GL_INVALID_OPERATION);
     return;
   }
 
-  ProgramInfo *prog = (ProgramInfo *)program;
-  if (prog->flags & PROGRAM_FLAG_LINK_FAILED) {
-    SetError(GL_INVALID_OPERATION);
+  if (bufSize < 0) {
+    SetError(GL_INVALID_VALUE);
     return;
   }
 
-  // Lookup uniform.
-  Assert(ObjectIsShader(info->attachedVertex), "Invalid vertex shader!");
-  ShaderInfo *vshad = (ShaderInfo *)prog->linkedVertex;
-  ShaderInfo *gshad = (ShaderInfo *)prog->linkedGeometry;
-  GLint loc = LookupUniform(vshad, name);
+  ProgramInfo *prog = (ProgramInfo *)program;
 
-  if (loc == -1 && gshad)
-    loc = LookupUniform(gshad, name);
+  // Get shader.
+  ShaderInfo *shad = (ShaderInfo *)prog->linkedVertex;
+  if (!shad)
+    return;
 
-  return loc;
-  */
+  if (index > shad->numOfActiveUniforms) {
+    index -= shad->numOfActiveUniforms;
+    shad = (ShaderInfo *)prog->linkedGeometry;
+  }
+
+  if (!shad)
+    return;
+
+  if (index > shad->numOfActiveUniforms) {
+    SetError(GL_INVALID_VALUE);
+    return;
+  }
+
+  // Get uniform data.
+  const UniformInfo *uni = &shad->activeUniforms[index];
+  size_t symLength = Min(bufSize, strlen(uni->symbol));
+
+  if (length)
+    *length = symLength;
+
+  *size = uni->count;
+  strncpy(name, uni->symbol, symLength);
+
+  switch (uni->type) {
+  case GLASS_UNI_BOOL:
+    *type = GL_BOOL;
+    break;
+  case GLASS_UNI_INT:
+    *type = GL_INT_VEC4;
+    break;
+  case GLASS_UNI_FLOAT:
+    *type = GL_FLOAT_VEC4;
+    break;
+  default:
+    Unreachable("Invalid uniform type!");
+  }
+}
+
+void glGetUniformfv(GLuint program, GLint location, GLfloat *params); // TODO
+void glGetUniformiv(GLuint program, GLint location, GLint *params);   // TODO
+
+GLint glGetUniformLocation(GLuint program, const GLchar *name) {
+  if (!ObjectIsProgram(program)) {
+    SetError(GL_INVALID_OPERATION);
+    return -1;
+  }
+
+  ProgramInfo *prog = (ProgramInfo *)program;
+  if (prog->flags & PROGRAM_FLAG_LINK_FAILED) {
+    SetError(GL_INVALID_OPERATION);
+    return -1;
+  }
+
+  // Get offset.
+  const size_t offset = ExtractOffset(name);
+  if (offset != -1) {
+    // Lookup uniform.
+    if (ObjectIsShader(prog->linkedVertex)) {
+      ShaderInfo *vshad = (ShaderInfo *)prog->linkedVertex;
+      ShaderInfo *gshad = (ShaderInfo *)prog->linkedGeometry;
+      GLint loc = LookupUniform(vshad, name, offset);
+
+      if (loc == -1 && gshad)
+        loc = LookupUniform(gshad, name, offset);
+
+      return loc;
+    }
+  }
+
   return -1;
 }
 
@@ -127,21 +199,20 @@ void glUniform4i(GLint location, GLint v0, GLint v1, GLint v2, GLint v3) {
   glUniform4iv(location, 1, values);
 }
 
-/*
 void glUniform1fv(GLint location, GLsizei count, const GLfloat *value) {
-  SetFloat((UniformInfo *)location, value, 1, count);
+  SetFloat(location, value, 1, count);
 }
 
 void glUniform2fv(GLint location, GLsizei count, const GLfloat *value) {
-  SetFloat((UniformInfo *)location, value, 2, count);
+  SetFloat(location, value, 2, count);
 }
 
 void glUniform3fv(GLint location, GLsizei count, const GLfloat *value) {
-  SetFloat((UniformInfo *)location, value, 3, count);
+  SetFloat(location, value, 3, count);
 }
 
 void glUniform4fv(GLint location, GLsizei count, const GLfloat *value) {
-  SetFloat((UniformInfo *)location, value, 4, count);
+  SetFloat(location, value, 4, count);
 }
 
 void glUniform1iv(GLint location, GLsizei count, const GLint *value) {
@@ -159,11 +230,33 @@ void glUniform3iv(GLint location, GLsizei count, const GLint *value) {
 void glUniform4iv(GLint location, GLsizei count, const GLint *value) {
   SetInt(location, value, 4, count);
 }
-*/
 
 void glUniformMatrix2fv(GLint location, GLsizei count, GLboolean transpose,
-                        const GLfloat *value); // TODO
+                        const GLfloat *value) {
+  if (transpose != GL_FALSE) {
+    SetError(GL_INVALID_VALUE);
+    return;
+  }
+
+  glUniform2fv(location, 2, value);
+}
+
 void glUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose,
-                        const GLfloat *value); // TODO
+                        const GLfloat *value) {
+  if (transpose != GL_FALSE) {
+    SetError(GL_INVALID_VALUE);
+    return;
+  }
+
+  glUniform3fv(location, 3, value);
+}
+
 void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose,
-                        const GLfloat *value); // TODO
+                        const GLfloat *value) {
+  if (transpose != GL_FALSE) {
+    SetError(GL_INVALID_VALUE);
+    return;
+  }
+
+  glUniform4fv(location, 4, value);
+}

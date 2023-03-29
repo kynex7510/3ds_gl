@@ -14,17 +14,20 @@
 
 #define DECL_FLAG(id) (u32)(1 << (id))
 
-// Constant.
+// Constants.
 #define GLASS_INVALID_OBJECT 0
 #define GLASS_NUM_ATTRIB_SLOTS 12
 #define GLASS_NUM_ATTRIB_REGS 16
+#define GLASS_NUM_BOOL_UNIFORMS 16
+#define GLASS_NUM_INT_UNIFORMS 4
+#define GLASS_NUM_FLOAT_UNIFORMS 96
 #define GLASS_NUM_COMBINER_STAGES 6
 
 #define GLASS_UNI_BOOL 0x00
 #define GLASS_UNI_INT 0x01
 #define GLASS_UNI_FLOAT 0x02
 
-#define GLASS_UNI_VERTEX 0x00
+#define GLASS_UNI_VERTEX 0x00 // TODO: used?
 #define GLASS_UNI_GEOMETRY 0x01
 
 // Object types.
@@ -110,7 +113,7 @@ typedef struct {
   u8 ID;        // Uniform ID.
   u8 type;      // Uniform type.
   size_t count; // Number of elements.
-  u8 *symbol;   // Pointer to symbol.
+  char *symbol; // Pointer to symbol.
   union {
     u16 mask;    // Bool, bool array mask.
     u32 value;   // Int value.
@@ -135,7 +138,7 @@ typedef struct {
   u16 outTotal;                       // Total number of output registers.
   u32 outSems[7];                     // Output register semantics.
   u32 outClock;                       // Output register clock.
-  u8 *symbolTable;                    // This shader symbol table.
+  char *symbolTable;                  // This shader symbol table.
   u32 sizeOfSymbolTable;              // Size of symbol table.
   u16 constBoolMask;                  // Constant bool uniform mask.
   u32 constIntData[4];                // Constant int uniform data.

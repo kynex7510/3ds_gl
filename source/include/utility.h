@@ -10,7 +10,7 @@
 #define NORETURN __attribute__((noreturn))
 
 #define Min(x, y) (((x) < (y)) ? (x) : (y))
-#define Max(x, y) (((x) > (y)) ? (x) : (y))
+//#define Max(x, y) (((x) > (y)) ? (x) : (y))
 
 #ifndef NDEBUG
 #define Assert(cond, msg)                                                      \

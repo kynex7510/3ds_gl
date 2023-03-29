@@ -249,8 +249,7 @@ void glGenFramebuffers(GLsizei n, GLuint *framebuffers) {
 
   for (GLsizei i = 0; i < n; i++) {
     GLuint name = CreateObject(GLASS_FRAMEBUFFER_TYPE);
-
-    if (name == GLASS_INVALID_OBJECT) {
+    if (!ObjectIsFramebuffer(name)) {
       SetError(GL_OUT_OF_MEMORY);
       return;
     }
@@ -269,8 +268,7 @@ void glGenRenderbuffers(GLsizei n, GLuint *renderbuffers) {
 
   for (GLsizei i = 0; i < n; i++) {
     GLuint name = CreateObject(GLASS_RENDERBUFFER_TYPE);
-
-    if (name == GLASS_INVALID_OBJECT) {
+    if (!ObjectIsRenderbuffer(name)) {
       SetError(GL_OUT_OF_MEMORY);
       return;
     }

@@ -20,7 +20,7 @@ static BufferInfo *GLASS_buffers_getBoundBufferInfo(const GLenum target) {
     return NULL;
   }
 
-  if (buffer != GLASS_INVALID_OBJECT)
+  if (ObjectIsBuffer(buffer))
     return (BufferInfo *)buffer;
 
   SetError(GL_INVALID_OPERATION);
@@ -159,8 +159,7 @@ void glGenBuffers(GLsizei n, GLuint *buffers) {
 
   for (GLsizei i = 0; i < n; i++) {
     GLuint name = CreateObject(GLASS_BUFFER_TYPE);
-
-    if (name == GLASS_INVALID_OBJECT) {
+    if (!ObjectIsBuffer(name)) {
       SetError(GL_OUT_OF_MEMORY);
       return;
     }

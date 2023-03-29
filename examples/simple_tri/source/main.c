@@ -32,7 +32,7 @@ int main() {
   initCommon(&ctx, NULL);
 
   // Setup program.
-  GLuint prog = setupShaderProgram();
+  setupShaderProgram();
   // glGetUniformLocation(prog, "projection");
 
   // Setup attributes.
