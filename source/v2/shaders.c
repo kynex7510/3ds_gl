@@ -556,8 +556,9 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
     return false;
 
   out->numOfConstFloatUniforms = numOfConstFloatUniforms;
+  numOfConstFloatUniforms = 0;
 
-  for (size_t i = 0; i < out->numOfConstFloatUniforms; i++) {
+  for (size_t i = 0; i < info->numOfConstUniforms; i++) {
     const DVLEConstEntry *constEntry = &info->constUniforms[i];
     if (constEntry->type != GLASS_UNI_FLOAT)
       continue;
@@ -567,10 +568,13 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
                                  f24tof32(constEntry->data.floatUniform.z),
                                  f24tof32(constEntry->data.floatUniform.w)};
 
-    ConstFloatInfo *uni = &out->constFloatUniforms[i];
+    ConstFloatInfo *uni = &out->constFloatUniforms[numOfConstFloatUniforms++];
     uni->ID = constEntry->ID;
     PackFloatVector(components, uni->data);
   }
+
+  Assert(numOfConstFloatUniforms == out->numOfConstFloatUniforms,
+         "Invalid number of const float uniforms!");
 
   // Setup active uniforms.
   out->activeUniforms =
@@ -591,6 +595,7 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
     // Handle bool.
     if (entry->startReg >= 0x78 && entry->startReg <= 0x87) {
       Assert(entry->endReg <= 0x87, "Invalid bool uniform range!");
+      uni->ID -= 0x78;
       uni->type = GLASS_UNI_BOOL;
       uni->data.mask = 0;
       continue;
@@ -599,6 +604,7 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
     // Handle int.
     if (entry->startReg >= 0x70 && entry->startReg <= 0x73) {
       Assert(entry->endReg <= 0x73, "Invalid int uniform range!");
+      uni->ID -= 0x70;
       uni->type = GLASS_UNI_INT;
 
       if (uni->count > 1) {
@@ -615,6 +621,7 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
     // Handle float.
     if (entry->startReg >= 0x10 && entry->startReg <= 0x6F) {
       Assert(entry->endReg <= 0x6F, "Invalid float uniform range!");
+      uni->ID -= 0x10;
       uni->type = GLASS_UNI_FLOAT;
       uni->data.values = (u32 *)AllocMem((sizeof(u32) * 3) * uni->count);
       if (!uni->data.values)

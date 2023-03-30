@@ -424,9 +424,7 @@ void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
 void GLASS_gpu_uploadConstUniforms(const ShaderInfo *shader) {
   Assert(shader, "Shader was nullptr!");
 
-  if (!(shader->flags & SHADER_FLAG_DIRTY))
-    UploadBoolUniformMask(shader, shader->constBoolMask);
-
+  UploadBoolUniformMask(shader, shader->constBoolMask);
   UploadConstIntUniforms(shader);
   UploadConstFloatUniforms(shader);
 }
@@ -434,9 +432,7 @@ void GLASS_gpu_uploadConstUniforms(const ShaderInfo *shader) {
 void GLASS_gpu_uploadUniforms(ShaderInfo *shader) {
   Assert(shader, "Shader was nullptr!");
 
-  if (!(shader->flags & SHADER_FLAG_DIRTY))
-    return;
-
+  bool uploadBool = false;
   u16 boolMask = shader->constBoolMask;
   for (size_t i = 0; i < shader->numOfActiveUniforms; i++) {
     UniformInfo *uni = &shader->activeUniforms[i];
@@ -447,6 +443,7 @@ void GLASS_gpu_uploadUniforms(ShaderInfo *shader) {
     switch (uni->type) {
     case GLASS_UNI_BOOL:
       boolMask |= uni->data.mask;
+      uploadBool = true;
       break;
     case GLASS_UNI_INT:
       UploadIntUniform(shader, uni);
@@ -461,8 +458,8 @@ void GLASS_gpu_uploadUniforms(ShaderInfo *shader) {
     uni->dirty = false;
   }
 
-  UploadBoolUniformMask(shader, boolMask);
-  shader->flags &= ~SHADER_FLAG_DIRTY;
+  if (uploadBool)
+    UploadBoolUniformMask(shader, boolMask);
 }
 
 /*

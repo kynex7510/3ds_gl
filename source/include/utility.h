@@ -151,7 +151,7 @@ void GLASS_utility_transferBuffer(const RenderbufferInfo *colorBuffer,
                                   const RenderbufferInfo *displayBuffer,
                                   const u32 flags);
 
-// Pack int values into vector.
+// Pack int values into int8 vector.
 #define PackIntVector GLASS_utility_packIntVector
 void GLASS_utility_packIntVector(const u32 *in, u32 *out);
 
@@ -159,19 +159,42 @@ void GLASS_utility_packIntVector(const u32 *in, u32 *out);
 #define PackFloatVector GLASS_utility_packFloatVector
 void GLASS_utility_packFloatVector(const float *in, u32 *out);
 
-// Set boolean (array) uniform.
+// Unpack int8 vector into int values.
+#define UnpackIntVector GLASS_utility_unpackIntVector
+void GLASS_utility_unpackIntVector(const u32 in, u32 *out);
+
+// Unpack float24 vector into float values.
+#define UnpackFloatVector GLASS_utility_unpackFloatVector
+void GLASS_utility_unpackFloatVector(const u32 *in, float *out);
+
+// Get boolean uniform.
+#define GetBoolUniform GLASS_utility_getBoolUniform
+void GLASS_utility_getBoolUniform(const UniformInfo *info, const size_t offset,
+                                  bool *out);
+
+// Get int uniform.
+#define GetIntUniform GLASS_utility_getIntUniform
+void GLASS_utility_getIntUniform(const UniformInfo *info, const size_t offset,
+                                 u32 *out);
+
+// Get float uniform.
+#define GetFloatUniform GLASS_utility_getFloatUniform
+void GLASS_utility_getFloatUniform(const UniformInfo *info, const size_t offset,
+                                   u32 *out);
+
+// Set boolean uniform.
 #define SetBoolUniform GLASS_utility_setBoolUniform
-void GLASS_utility_setBoolUniform(UniformInfo *info, const u16 mask,
-                                  const size_t offset, const size_t size);
+void GLASS_utility_setBoolUniform(UniformInfo *info, const size_t offset,
+                                  const bool enabled);
 
-// Set int (array) uniform.
+// Set int uniform.
 #define SetIntUniform GLASS_utility_setIntUniform
-void GLASS_utility_setIntUniform(UniformInfo *info, const u32 *vectorData,
-                                 const size_t offset, const size_t size);
+void GLASS_utility_setIntUniform(UniformInfo *info, const size_t offset,
+                                 const u32 vector);
 
-// Set float (array) uniform.
+// Set float uniform.
 #define SetFloatUniform GLASS_utility_setFloatUniform
-void GLASS_utility_setFloatUniform(UniformInfo *info, const u32 *vectorData,
-                                   const size_t offset, const size_t size);
+void GLASS_utility_setFloatUniform(UniformInfo *info, const size_t offset,
+                                   const u32 *vectorData);
 
 #endif /* _GLASS_UTILITY_H */

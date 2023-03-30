@@ -9,6 +9,14 @@
    (((type) == GLASS_UNI_INT) && ((offset) < 4)) ||                            \
    (((type) == GLASS_UNI_FLOAT) && ((offset) < 96)))
 
+// Types
+
+typedef struct {
+  size_t index;
+  size_t offset;
+  bool isGeometry;
+} LocationData;
+
 // Helpers
 
 #define MakeLocation GLASS_uniforms_makeLocation
@@ -18,8 +26,24 @@ static GLint GLASS_uniforms_makeLocation(const size_t index,
   return (GLint)((isGeometry << 16) | (index << 8) | (offset & 0xFF));
 }
 
+#define ParseLocation GLASS_uniforms_parseLocation
+static bool GLASS_uniforms_parseLocation(const GLint loc, LocationData *out) {
+  Assert(out, "Out was nullptr!");
+
+  if (loc != -1) {
+    out->index = (loc >> 8) & 0xFF;
+    out->offset = loc & 0xFF;
+    out->isGeometry = (loc >> 16) & 1;
+    return true;
+  }
+
+  return false;
+}
+
 #define ExtractOffset GLASS_uniforms_extractOffset
 static size_t GLASS_uniforms_extractOffset(const char *name) {
+  Assert(name, "Name was nullptr!");
+
   if (strstr(name, ".") || (strstr(name, "gl_") == name))
     return -1;
 
@@ -51,6 +75,7 @@ static GLint GLASS_uniforms_lookupUniform(const ShaderInfo *shader,
   return -1;
 }
 
+// TODO
 #define SetInt GLASS_uniforms_setInt
 static void GLASS_uniforms_setInt(const GLint location, const GLint *values,
                                   const size_t numOfComponents,
@@ -59,7 +84,76 @@ static void GLASS_uniforms_setInt(const GLint location, const GLint *values,
 #define SetFloat GLASS_uniforms_setFloat
 static void GLASS_uniforms_setFloat(const GLint location, const GLfloat *values,
                                     const size_t numOfComponents,
-                                    const size_t numOfElements) {}
+                                    const GLsizei numOfElements) {
+  if (numOfElements < 0) {
+    SetError(GL_INVALID_VALUE);
+    return;
+  }
+
+  // Parse location.
+  LocationData locData = {};
+  if (!ParseLocation(location, &locData))
+    return;
+
+  // Get program.
+  CtxImpl *ctx = GetContext();
+  if (!ObjectIsProgram(ctx->currentProgram)) {
+    SetError(GL_INVALID_OPERATION);
+    return;
+  }
+
+  ProgramInfo *prog = (ProgramInfo *)ctx->currentProgram;
+
+  // Get uniform.
+  ShaderInfo *shad = NULL;
+  if (locData.isGeometry) {
+    if (!ObjectIsShader(prog->linkedGeometry)) {
+      SetError(GL_INVALID_OPERATION);
+      return;
+    }
+
+    shad = (ShaderInfo *)prog->linkedGeometry;
+  } else {
+    if (!ObjectIsShader(prog->linkedVertex)) {
+      SetError(GL_INVALID_OPERATION);
+      return;
+    }
+
+    shad = (ShaderInfo *)prog->linkedVertex;
+  }
+
+  if (locData.index > shad->numOfActiveUniforms) {
+    SetError(GL_INVALID_OPERATION);
+    return;
+  }
+
+  UniformInfo *uni = &shad->activeUniforms[locData.index];
+  // Make sure we're dealing with a float (or bool), and the offset is correct.
+  if ((uni->type == GLASS_UNI_INT) || (locData.offset >= uni->count)) {
+    SetError(GL_INVALID_OPERATION);
+    return;
+  }
+
+  // Handle bool.
+  // TODO
+
+  // Handle float.
+  for (size_t i = locData.offset; i < uni->count; i++) {
+    float components[4] = {};
+    u32 packed[3] = {};
+
+    GetFloatUniform(uni, i, packed);
+    UnpackFloatVector(packed, components);
+
+    for (size_t j = 0; j < numOfComponents; j++)
+      components[j] = values[(numOfComponents * i) + j];
+
+    PackFloatVector(components, packed);
+    SetFloatUniform(uni, i, packed);
+  }
+
+  ctx->flags |= CONTEXT_FLAG_UNIFORMS;
+}
 
 // Uniforms
 
@@ -238,7 +332,7 @@ void glUniformMatrix2fv(GLint location, GLsizei count, GLboolean transpose,
     return;
   }
 
-  glUniform2fv(location, 2, value);
+  glUniform2fv(location, 2 * count, value);
 }
 
 void glUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose,
@@ -248,7 +342,7 @@ void glUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose,
     return;
   }
 
-  glUniform3fv(location, 3, value);
+  glUniform3fv(location, 3 * count, value);
 }
 
 void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose,
@@ -258,5 +352,5 @@ void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose,
     return;
   }
 
-  glUniform4fv(location, 4, value);
+  glUniform4fv(location, 4 * count, value);
 }

@@ -3,6 +3,49 @@
 
 #include "common.h"
 
+// Citro3D code
+
+typedef union {
+  struct {
+    float w; ///< W-component
+    float z; ///< Z-component
+    float y; ///< Y-component
+    float x; ///< X-component
+  };
+  struct {
+    float r; ///< Real component
+    float k; ///< K-component
+    float j; ///< J-component
+    float i; ///< I-component
+  };
+  float c[4];
+} C3D_FVec;
+
+typedef union {
+  C3D_FVec r[4];
+  float m[4 * 4];
+} C3D_Mtx;
+
+static inline void Mtx_Zeros(C3D_Mtx *out) { memset(out, 0, sizeof(*out)); }
+
+static void Mtx_OrthoTilt(C3D_Mtx *mtx, float left, float right, float bottom,
+                          float top, float near, float far, bool isLeftHanded) {
+  Mtx_Zeros(mtx);
+
+  mtx->r[0].y = 2.0f / (top - bottom);
+  mtx->r[0].w = (bottom + top) / (bottom - top);
+  mtx->r[1].x = 2.0f / (left - right);
+  mtx->r[1].w = (left + right) / (right - left);
+  if (isLeftHanded)
+    mtx->r[2].z = 1.0f / (far - near);
+  else
+    mtx->r[2].z = 1.0f / (near - far);
+  mtx->r[2].w = 0.5f * (near + far) / (near - far) - 0.5f;
+  mtx->r[3].w = 1.0f;
+}
+
+// Helpers
+
 static void render(const u32 keys) {
   // Change clear color based on keys.
   if (keys & KEY_A) {
@@ -25,6 +68,8 @@ static void render(const u32 keys) {
   GLCheck(glClear(GL_COLOR_BUFFER_BIT));
 }
 
+// Main
+
 int main() {
   glassCtx *ctx;
 
@@ -32,12 +77,20 @@ int main() {
   initCommon(&ctx, NULL);
 
   // Setup program.
-  setupShaderProgram();
-  // glGetUniformLocation(prog, "projection");
+  GLint prog = setupShaderProgram();
+
+  // Setup uniform.
+  C3D_Mtx projection = {};
+  GLCheck(GLint projLoc = glGetUniformLocation(prog, "projection"));
+  if (projLoc == -1) {
+    breakWithError("PROJLOC WAS -1");
+  }
+  Mtx_OrthoTilt(&projection, 0.0, 400.0, 0.0, 240.0, 0.0, 1.0, true);
+  GLCheck(glUniformMatrix4fv(projLoc, 1, GL_FALSE, projection.m));
 
   // Setup attributes.
-  GLCheck(glEnableVertexAttribArray(0));
-  GLCheck(glVertexAttrib4f(0, 1.0f, 0.0f, 0.0f, 1.0f));
+  // GLCheck(glEnableVertexAttribArray(0));
+  // GLCheck(glVertexAttrib4f(0, 1.0f, 0.0f, 0.0f, 1.0f));
 
   // Main loop.
   while (aptMainLoop()) {

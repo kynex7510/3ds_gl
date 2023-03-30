@@ -34,14 +34,18 @@ static const char *stringifyError(const GLenum error) {
   }
 }
 
+static void breakWithError(const char *s) {
+  svcOutputDebugString(s, strlen(s));
+  svcBreak(USERBREAK_PANIC);
+}
+
 static void checkError(const size_t line) {
   char buffer[80];
   GLenum error = glGetError();
   if (error != GL_NO_ERROR) {
     sprintf(buffer, "ERROR: \"%s\" (%04x) at line %u\n", stringifyError(error),
             error, line);
-    svcOutputDebugString(buffer, strlen(buffer));
-    svcBreak(USERBREAK_PANIC);
+    breakWithError(buffer);
   }
 }
 

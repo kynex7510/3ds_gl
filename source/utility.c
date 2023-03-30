@@ -8,26 +8,6 @@ extern u32 __ctru_linear_heap;
 
 // Helpers
 
-/*
-#define UnpackIntVector GLASS_utility_unpackIntVector
-static void GLASS_utility_unpackIntVector(const u32 in, u32 *out) {
-  out[0] = in & 0xFF;
-  out[1] = (in >> 8) & 0xFF;
-  out[2] = (in >> 16) & 0xFF;
-  out[3] = (in >> 24) & 0xFF;
-}
-*/
-
-/*
-#define UnpackFloatVector GLASS_utility_unpackFloatVector
-static void GLASS_utility_unpackFloatVector(const u32 *in, float *out) {
-  out[0] = f24tof32(in[2] >> 8);
-  out[1] = f24tof32(((in[2] & 0xFF) << 16) | (in[1] >> 16));
-  out[2] = f24tof32(((in[1] & 0xFFFF) << 8) | (in[0] >> 24));
-  out[3] = f24tof32(in[0] & 0xFFFFFF);
-}
-*/
-
 #define GetGXControl GLASS_utility_getGXControl
 static u16 GLASS_utility_getGXControl(const bool start, const bool finished,
                                       const GLenum format) {
@@ -612,70 +592,97 @@ void GLASS_utility_transferBuffer(const RenderbufferInfo *colorBuffer,
 }
 
 void GLASS_utility_packIntVector(const u32 *in, u32 *out) {
-  *out |= in[0] & 0xFF;
+  Assert(in, "In was nullptr!");
+  Assert(out, "Out was nullptr!");
+
+  *out = in[0] & 0xFF;
   *out |= (in[1] & 0xFF) << 8;
   *out |= (in[2] & 0xFF) << 16;
   *out |= (in[3] & 0xFF) << 24;
 }
 
 void GLASS_utility_packFloatVector(const float *in, u32 *out) {
+  Assert(in, "In was nullptr!");
+  Assert(out, "Out was nullptr!");
+
   const u32 cvtX = f32tof24(in[0]);
   const u32 cvtY = f32tof24(in[1]);
   const u32 cvtZ = f32tof24(in[2]);
   const u32 cvtW = f32tof24(in[3]);
-  out[0] = (cvtW << 8) | ((cvtZ >> 16) & 0xFF);
-  out[1] = (cvtZ << 16) | ((cvtY >> 8) & 0xFFFF);
-  out[2] = (cvtY << 16) | (cvtX & 0xFFFFFF);
+  out[0] = (cvtW << 8) | (cvtZ >> 16);
+  out[1] = (cvtZ << 16) | (cvtY >> 8);
+  out[2] = (cvtY << 24) | cvtX;
 }
 
-void GLASS_utility_setBoolUniform(UniformInfo *info, const u16 mask,
-                                  const size_t offset, const size_t size) {
+void GLASS_utility_unpackIntVector(const u32 in, u32 *out) {
+  Assert(out, "Out was nullptr!");
+  out[0] = in & 0xFF;
+  out[1] = (in >> 8) & 0xFF;
+  out[2] = (in >> 16) & 0xFF;
+  out[3] = (in >> 24) & 0xFF;
+}
+
+void GLASS_utility_unpackFloatVector(const u32 *in, float *out) {
+  Assert(in, "In was nullptr!");
+  Assert(out, "Out was nullptr!");
+
+  out[0] = f24tof32(in[2] & 0xFFFFFF);
+  out[1] = f24tof32((in[2] >> 24) | ((in[1] & 0xFFFF) << 8));
+  out[2] = f24tof32((in[1] >> 16) | ((in[0] & 0xFF) << 16));
+  out[3] = f24tof32(in[0] >> 8);
+}
+
+void GLASS_utility_getFloatUniform(const UniformInfo *info, const size_t offset,
+                                   u32 *out) {
+  Assert(info, "Info was nullptr!");
+  Assert(out, "Out was nullptr!");
+  Assert(info->type == GLASS_UNI_FLOAT, "Invalid uniform type!");
+  Assert(info->count < GLASS_NUM_FLOAT_UNIFORMS,
+         "Invalid float uniform count!");
+  Assert(offset < info->count, "Invalid offset!");
+
+  CopyMem(&info->data.values[3 * offset], out, 3 * sizeof(u32));
+}
+
+void GLASS_utility_setBoolUniform(UniformInfo *info, const size_t offset,
+                                  const bool enabled) {
   Assert(info, "Info was nullptr!");
   Assert(info->type == GLASS_UNI_BOOL, "Invalid uniform type!");
-  Assert(info->count < 16, "Invalid bool uniform count!");
+  Assert(info->count < GLASS_NUM_BOOL_UNIFORMS, "Invalid bool uniform count!");
   Assert(offset < info->count, "Invalid offset!");
-  Assert(size <= (info->count - offset), "Invalid size!");
 
-  for (size_t i = offset; i < size; i++) {
-    if ((mask >> (i - offset)) & 1)
-      info->data.mask |= (1 << i);
-    else
-      info->data.mask &= ~(1 << i);
-  }
+  if (enabled)
+    info->data.mask |= (1 << offset);
+  else
+    info->data.mask &= ~(1 << offset);
 
   info->dirty = true;
 }
 
-void GLASS_utility_setIntUniform(UniformInfo *info, const u32 *vectorData,
-                                 const size_t offset, const size_t size) {
+void GLASS_utility_setIntUniform(UniformInfo *info, const size_t offset,
+                                 const u32 vector) {
   Assert(info, "Info was nullptr!");
   Assert(info->type == GLASS_UNI_INT, "Invalid uniform type!");
-  Assert(info->count < 4, "Invalid int uniform count!");
+  Assert(info->count < GLASS_NUM_INT_UNIFORMS, "Invalid int uniform count!");
   Assert(offset < info->count, "Invalid offset!");
-  Assert(size <= (info->count - offset), "Invalid size!");
 
   if (info->count == 1) {
-    info->data.value = vectorData[0];
+    info->data.value = vector;
   } else {
-    for (size_t i = offset; i < size; i++)
-      info->data.values[i] = vectorData[i - offset];
+    info->data.values[offset] = vector;
   }
 
   info->dirty = true;
 }
 
-void GLASS_utility_setFloatUniform(UniformInfo *info, const u32 *vectorData,
-                                   const size_t offset, const size_t size) {
+void GLASS_utility_setFloatUniform(UniformInfo *info, const size_t offset,
+                                   const u32 *vectorData) {
   Assert(info, "Info was nullptr!");
   Assert(info->type == GLASS_UNI_FLOAT, "Invalid uniform type!");
-  Assert(info->count < 96, "Invalid float uniform count!");
+  Assert(info->count < GLASS_NUM_FLOAT_UNIFORMS,
+         "Invalid float uniform count!");
   Assert(offset < info->count, "Invalid offset!");
-  Assert(size <= (info->count - offset), "Invalid size!");
 
-  for (size_t i = offset; i < size; i++) {
-    CopyMem(&vectorData[4 * (i - offset)], &info->data.values[3 * i],
-            3 * sizeof(u32));
-  }
-
+  CopyMem(vectorData, &info->data.values[3 * offset], 3 * sizeof(u32));
   info->dirty = true;
 }

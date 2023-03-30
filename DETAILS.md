@@ -16,7 +16,7 @@
 
 - The GPU has 16 input registers, but only 12 can be used at the same time for vertex attributes. `glEnableVertexAttribArray` will fail with `GL_OUT_OF_MEMORY` if all 12 slots are used; to use a different register call `glDisableVertexAttribArray` to disable one of the used registers first. 
 
-- It is possible to use `glUniform` on uniform variables where the number of components is greater than that of the command. The other component values will be left unchanged.
+- It is possible to use `glUniform` commands regardless of the size indicated in the command itself. Thus, for bool input component values will be discarded, for int and float uniform components values will not be modified.
 
 ## Extensions
 

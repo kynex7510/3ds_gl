@@ -95,9 +95,8 @@ typedef struct {
 // Shader flags.
 #define SHADER_FLAG_DELETE DECL_FLAG(0)
 #define SHADER_FLAG_GEOMETRY DECL_FLAG(1)
-#define SHADER_FLAG_DIRTY DECL_FLAG(2)
-#define SHADER_FLAG_MERGE_OUTMAPS DECL_FLAG(3)
-#define SHADER_FLAG_USE_TEXCOORDS DECL_FLAG(4)
+#define SHADER_FLAG_MERGE_OUTMAPS DECL_FLAG(2)
+#define SHADER_FLAG_USE_TEXCOORDS DECL_FLAG(3)
 
 // Represents shared shader data.
 typedef struct {
