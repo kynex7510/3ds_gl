@@ -271,27 +271,22 @@ CtxImpl *GLASS_context_updateContext(void) {
 
       if (gs)
         UploadConstUniforms(gs);
-
-      g_Context->flags |= CONTEXT_FLAG_UNIFORMS;
     }
 
     g_Context->flags &= ~CONTEXT_FLAG_PROGRAM;
   }
 
   // Handle uniforms.
-  if (g_Context->flags & CONTEXT_FLAG_UNIFORMS) {
+  if (ObjectIsProgram(g_Context->currentProgram)) {
     ProgramInfo *pinfo = (ProgramInfo *)g_Context->currentProgram;
-    if (pinfo) {
-      ShaderInfo *vs = (ShaderInfo *)pinfo->linkedVertex;
-      if (vs)
-        UploadUniforms(vs);
+    ShaderInfo *vs = (ShaderInfo *)pinfo->linkedVertex;
+    ShaderInfo *gs = (ShaderInfo *)pinfo->linkedGeometry;
 
-      ShaderInfo *gs = (ShaderInfo *)pinfo->linkedGeometry;
-      if (gs)
-        UploadUniforms(gs);
-    }
+    if (vs)
+      UploadUniforms(vs);
 
-    g_Context->flags &= ~CONTEXT_FLAG_UNIFORMS;
+    if (gs)
+      UploadUniforms(gs);
   }
 
   // Handle combiners.

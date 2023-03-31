@@ -82,15 +82,17 @@ int main() {
   // Setup uniform.
   C3D_Mtx projection = {};
   GLCheck(GLint projLoc = glGetUniformLocation(prog, "projection"));
-  if (projLoc == -1) {
-    breakWithError("PROJLOC WAS -1");
-  }
   Mtx_OrthoTilt(&projection, 0.0, 400.0, 0.0, 240.0, 0.0, 1.0, true);
   GLCheck(glUniformMatrix4fv(projLoc, 1, GL_FALSE, projection.m));
 
   // Setup attributes.
-  // GLCheck(glEnableVertexAttribArray(0));
-  // GLCheck(glVertexAttrib4f(0, 1.0f, 0.0f, 0.0f, 1.0f));
+  GLCheck(glVertexAttrib3f(0, 200.0f, 200.0f, 0.5f));
+  GLCheck(glVertexAttrib3f(1, 100.0f, 40.0f, 0.5f));
+  GLCheck(glVertexAttrib3f(2, 300.0f, 40.0f, 0.5f));
+
+  GLCheck(glEnableVertexAttribArray(0));
+  GLCheck(glEnableVertexAttribArray(1));
+  GLCheck(glEnableVertexAttribArray(2));
 
   // Main loop.
   while (aptMainLoop()) {

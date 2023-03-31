@@ -12,24 +12,27 @@
 #define Min(x, y) (((x) < (y)) ? (x) : (y))
 //#define Max(x, y) (((x) > (y)) ? (x) : (y))
 
+// Debugging utilities.
+
 #ifndef NDEBUG
 #define Assert(cond, msg)                                                      \
   do {                                                                         \
     if (!(cond))                                                               \
       Unreachable((msg));                                                      \
   } while (false)
-#else
-#define Assert(cond, msg)
-#endif
 
-// Log implementation.
 #define Log GLASS_utility_log
 void GLASS_utility_log(const char *msg);
-
-// Unreachable implementation.
 #define Unreachable GLASS_utility_unreachable
 void GLASS_utility_unreachable(const char *msg) NORETURN;
+#else
+#define Assert(cond, msg)
+#define Log(msg)
+#define Unreachable(msg) GLASS_utility_unreachable()
+void GLASS_utility_unreachable(void) NORETURN;
+#endif // NDEBUG
 
+// Convert physical address to virtual.
 #define osConvertPhysToVirt GLASS_utility_convertPhysToVirt
 void *GLASS_utility_convertPhysToVirt(const u32 addr);
 
@@ -169,8 +172,7 @@ void GLASS_utility_unpackFloatVector(const u32 *in, float *out);
 
 // Get boolean uniform.
 #define GetBoolUniform GLASS_utility_getBoolUniform
-void GLASS_utility_getBoolUniform(const UniformInfo *info, const size_t offset,
-                                  bool *out);
+bool GLASS_utility_getBoolUniform(const UniformInfo *info, const size_t offset);
 
 // Get int uniform.
 #define GetIntUniform GLASS_utility_getIntUniform

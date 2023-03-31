@@ -1,8 +1,5 @@
 # TODO
 
-- Finish uniforms
-- - Implement bool, int uniform loading
-- - Check that matrix loading is in the right order
 - Finish attributes
 - - fix attributes with buffers
 - - how does one disable an attribute?

@@ -17,10 +17,10 @@ static u16 GLASS_utility_getGXControl(const bool start, const bool finished,
 
 // Utility
 
-void GLASS_utility_log(const char *msg) {
 #ifndef NDEBUG
+
+void GLASS_utility_log(const char *msg) {
   svcOutputDebugString(msg, strlen(msg));
-#endif
 }
 
 void GLASS_utility_unreachable(const char *msg) {
@@ -28,6 +28,15 @@ void GLASS_utility_unreachable(const char *msg) {
   svcBreak(USERBREAK_PANIC);
   __builtin_unreachable();
 }
+
+#else
+
+void GLASS_utility_unreachable(void) {
+  svcBreak(USERBREAK_PANIC);
+  __builtin_unreachable();
+}
+
+#endif // NDEBUG
 
 void *GLASS_utility_convertPhysToVirt(const u32 addr) {
 #define CONVERT_REGION(_name)                                                  \
@@ -632,12 +641,33 @@ void GLASS_utility_unpackFloatVector(const u32 *in, float *out) {
   out[3] = f24tof32(in[0] >> 8);
 }
 
+bool GLASS_utility_getBoolUniform(const UniformInfo *info,
+                                  const size_t offset) {
+  Assert(info, "Info was nullptr!");
+  Assert(info->type == GLASS_UNI_BOOL, "Invalid uniform type!");
+  Assert(info->count <= GLASS_NUM_BOOL_UNIFORMS, "Invalid bool uniform count!");
+  Assert(offset < info->count, "Invalid offset!");
+
+  return (info->data.mask >> offset) & 1;
+}
+
+void GLASS_utility_getIntUniform(const UniformInfo *info, const size_t offset,
+                                 u32 *out) {
+  Assert(info, "Info was nullptr!");
+  Assert(out, "Out was nullptr!");
+  Assert(info->type == GLASS_UNI_INT, "Invalid uniform type!");
+  Assert(info->count <= GLASS_NUM_INT_UNIFORMS, "Invalid int uniform count!");
+  Assert(offset < info->count, "Invalid offset!");
+
+  *out = (info->count == 1) ? info->data.value : info->data.values[offset];
+}
+
 void GLASS_utility_getFloatUniform(const UniformInfo *info, const size_t offset,
                                    u32 *out) {
   Assert(info, "Info was nullptr!");
   Assert(out, "Out was nullptr!");
   Assert(info->type == GLASS_UNI_FLOAT, "Invalid uniform type!");
-  Assert(info->count < GLASS_NUM_FLOAT_UNIFORMS,
+  Assert(info->count <= GLASS_NUM_FLOAT_UNIFORMS,
          "Invalid float uniform count!");
   Assert(offset < info->count, "Invalid offset!");
 
@@ -648,7 +678,7 @@ void GLASS_utility_setBoolUniform(UniformInfo *info, const size_t offset,
                                   const bool enabled) {
   Assert(info, "Info was nullptr!");
   Assert(info->type == GLASS_UNI_BOOL, "Invalid uniform type!");
-  Assert(info->count < GLASS_NUM_BOOL_UNIFORMS, "Invalid bool uniform count!");
+  Assert(info->count <= GLASS_NUM_BOOL_UNIFORMS, "Invalid bool uniform count!");
   Assert(offset < info->count, "Invalid offset!");
 
   if (enabled)
@@ -663,7 +693,7 @@ void GLASS_utility_setIntUniform(UniformInfo *info, const size_t offset,
                                  const u32 vector) {
   Assert(info, "Info was nullptr!");
   Assert(info->type == GLASS_UNI_INT, "Invalid uniform type!");
-  Assert(info->count < GLASS_NUM_INT_UNIFORMS, "Invalid int uniform count!");
+  Assert(info->count <= GLASS_NUM_INT_UNIFORMS, "Invalid int uniform count!");
   Assert(offset < info->count, "Invalid offset!");
 
   if (info->count == 1) {
@@ -679,7 +709,7 @@ void GLASS_utility_setFloatUniform(UniformInfo *info, const size_t offset,
                                    const u32 *vectorData) {
   Assert(info, "Info was nullptr!");
   Assert(info->type == GLASS_UNI_FLOAT, "Invalid uniform type!");
-  Assert(info->count < GLASS_NUM_FLOAT_UNIFORMS,
+  Assert(info->count <= GLASS_NUM_FLOAT_UNIFORMS,
          "Invalid float uniform count!");
   Assert(offset < info->count, "Invalid offset!");
 

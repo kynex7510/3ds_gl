@@ -92,7 +92,7 @@ static void GLASS_gpu_uploadIntUniform(const ShaderInfo *shader,
   if (info->count == 1) {
     GPUCMD_AddWrite(reg + info->ID, info->data.value);
   } else {
-    GPUCMD_AddWrites(reg + info->ID, info->data.values, info->count);
+    GPUCMD_AddIncrementalWrites(reg + info->ID, info->data.values, info->count);
   }
 }
 
