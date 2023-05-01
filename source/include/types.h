@@ -22,13 +22,9 @@
 #define GLASS_NUM_INT_UNIFORMS 4
 #define GLASS_NUM_FLOAT_UNIFORMS 96
 #define GLASS_NUM_COMBINER_STAGES 6
-
 #define GLASS_UNI_BOOL 0x00
 #define GLASS_UNI_INT 0x01
 #define GLASS_UNI_FLOAT 0x02
-
-#define GLASS_UNI_VERTEX 0x00 // TODO: used?
-#define GLASS_UNI_GEOMETRY 0x01
 
 // Object types.
 #define GLASS_UNKNOWN_TYPE 0x00
@@ -239,12 +235,12 @@ typedef struct {
   GLsizei scissorW;            // Scissor box W.
   GLsizei scissorH;            // Scissor box H.
 
+  // Program.
+  GLuint currentProgram; // Shader program in use.
+
   // Attributes.
   AttributeInfo attribs[GLASS_NUM_ATTRIB_REGS]; // Attributes data.
   size_t attribSlots[GLASS_NUM_ATTRIB_SLOTS];   // Attributes slots.
-
-  // Program.
-  GLuint currentProgram; // Shader program in use.
 
   // Combiners.
   GLint combinerStage;                               // Current combiner stage.

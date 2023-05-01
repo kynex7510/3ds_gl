@@ -5,6 +5,7 @@
 #include "gl2.h"
 
 #include <3ds.h>
+#include <citro3d.h>
 
 #if defined(COMMON_HAS_VSHAD)
 #include "vshader_shbin.h"
@@ -69,14 +70,17 @@ static void refreshDebugStats(void) {
   consoleClear();
   printf("MEMORY USAGE\n");
 
-  printf("Virtual memory: ");
+  printf("- Virtual memory: ");
   printNumBytes(g_UsedMem);
 
-  printf("Linear memory: ");
+  printf("- Linear memory: ");
   printNumBytes(g_UsedLinearMem);
 
-  printf("VRAM: ");
+  printf("- VRAM: ");
   printNumBytes(g_UsedVRAM);
+
+  printf("- Total: ");
+  printNumBytes(g_UsedMem + g_UsedLinearMem + g_UsedVRAM);
 }
 
 void GLASS_virtualAllocHook(const void *p, const size_t size) {

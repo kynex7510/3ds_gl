@@ -114,6 +114,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count) {
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type,
                     const GLvoid *indices) {
+  // TODO: element array buffer if indices == NULL.
   if (!IsDrawMode(mode)) {
     SetError(GL_INVALID_ENUM);
     return;

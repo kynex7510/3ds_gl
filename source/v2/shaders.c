@@ -630,6 +630,7 @@ bool GLASS_shaders_loadUniforms(const DVLEInfo *info, ShaderInfo *out) {
       continue;
     }
 
+    // TODO: handle attributes.
     Unreachable("Unknown uniform type!");
   }
 

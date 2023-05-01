@@ -12,6 +12,7 @@
 #include "gpu.h"
 #include "utility.h"
 
+#define PHYSICAL_LINEAR_BASE 0x18000000
 #define GPU_MAX_ENTRIES 0x4000
 #define GX_MAX_ENTRIES 32
 
@@ -125,10 +126,18 @@ static void GLASS_gpu_uploadFloatUniform(const ShaderInfo *shader,
                           : GPUREG_VSH_FLOATUNIFORM_DATA;
 
   // ID is automatically incremented after each write.
-  GPUCMD_AddWrite(idReg, info->ID);
+  // TODO: packed values don't work, it seems.
+  GPUCMD_AddWrite(idReg, 0x80000000 | info->ID);
 
-  for (size_t i = 0; i < info->count; i++)
-    GPUCMD_AddIncrementalWrites(dataReg, &info->data.values[i * 3], 3);
+  for (size_t i = 0; i < info->count; i++) {
+    float components[4];
+    uint32_t *buffer = &info->data.values[i * 3];
+    UnpackFloatVector(buffer, components);
+    GPUCMD_AddWrites(dataReg, (u32 *)components, 4);
+  }
+
+  // for (size_t i = 0; i < info->count; i++)
+  //  GPUCMD_AddIncrementalWrites(dataReg, &info->data.values[i * 3], 3);
 }
 
 // GPU
@@ -216,9 +225,7 @@ void GLASS_gpu_bindFramebuffer(const FramebufferInfo *info, bool block32) {
   u32 height = 0;
   GLenum colorFormat = 0;
   GLenum depthFormat = 0;
-  u32 params[4];
-
-  ZeroVar(params);
+  u32 params[4] = {};
 
   if (info) {
     if (info->colorBuffer) {
@@ -253,14 +260,14 @@ void GLASS_gpu_bindFramebuffer(const FramebufferInfo *info, bool block32) {
     GPUCMD_AddWrite(GPUREG_COLORBUFFER_FORMAT,
                     (GLToGPUFBFormat(colorFormat) << 16) |
                         GetFBPixelSize(colorFormat));
-    params[0] = params[1] = 1;
+    params[0] = params[1] = 0x0F;
   } else {
     params[0] = params[1] = 0;
   }
 
   if (depthBuffer) {
     GPUCMD_AddWrite(GPUREG_DEPTHBUFFER_FORMAT, GLToGPUFBFormat(depthFormat));
-    params[2] = params[3] = 1;
+    params[2] = params[3] = 0x03;
   } else {
     params[2] = params[3] = 0;
   }
@@ -296,11 +303,9 @@ void GLASS_gpu_setScissorTest(const GPU_SCISSORMODE mode, const GLint x,
                               const GLint y, const GLsizei width,
                               const GLsizei height) {
   GPUCMD_AddMaskedWrite(GPUREG_SCISSORTEST_MODE, 0x01, mode);
-  if (mode != GPU_SCISSOR_DISABLE) {
-    GPUCMD_AddWrite(GPUREG_SCISSORTEST_POS, (y << 16) | (x & 0xFFFF));
-    GPUCMD_AddWrite(GPUREG_SCISSORTEST_DIM,
-                    ((height - y - 1) << 16) | ((width - x - 1) & 0xFFFF));
-  }
+  GPUCMD_AddWrite(GPUREG_SCISSORTEST_POS, (y << 16) | (x & 0xFFFF));
+  GPUCMD_AddWrite(GPUREG_SCISSORTEST_DIM,
+                  ((height - y - 1) << 16) | ((width - x - 1) & 0xFFFF));
 }
 
 void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
@@ -462,7 +467,6 @@ void GLASS_gpu_uploadUniforms(ShaderInfo *shader) {
     UploadBoolUniformMask(shader, boolMask);
 }
 
-/*
 void GLASS_gpu_uploadAttributes(const AttributeInfo *attribs,
                                 const size_t *slots) {
   Assert(attribs, "Attribs was nullptr!");
@@ -471,76 +475,75 @@ void GLASS_gpu_uploadAttributes(const AttributeInfo *attribs,
   u32 permutation[2];
   size_t attribCount = 0;
 
-  format[0] = format[1] = permutation[0] = permutation[1] = 0;
+  format[0] = permutation[0] = permutation[1] = 0;
+  format[1] = 0xFFF0000; // Fixed by default (ie. if disabled).
 
   // Handle params.
   for (size_t i = 0; i < GLASS_NUM_ATTRIB_SLOTS; i++) {
+    const size_t reg = slots[i];
+
+    if (reg >= GLASS_NUM_ATTRIB_REGS)
+      continue;
+
+    const AttributeInfo *attrib = &attribs[reg];
+    GPU_FORMATS attribType = GLToGPUAttribType(attrib->type);
+
+    if (attrib->physAddr) {
+      if (i < 8)
+        format[0] |= GPU_ATTRIBFMT(i, attrib->count, attribType);
+      else
+        format[1] |= GPU_ATTRIBFMT(i - 8, attrib->count, attribType);
+
+      format[1] &= ~(1 << (16 + i));
+    }
+
+    if (i < 8)
+      permutation[0] |= (reg << (4 * i));
+    else
+      permutation[1] |= (reg << (4 * i));
+    ++attribCount;
+  }
+
+  format[1] |= ((attribCount - 1) << 28);
+
+  // Set the type, num of components, is fixed, and total count of attributes.
+  GPUCMD_AddIncrementalWrites(GPUREG_ATTRIBBUFFERS_FORMAT_LOW, format, 2);
+  GPUCMD_AddMaskedWrite(GPUREG_VSH_INPUTBUFFER_CONFIG, 0x0B,
+                        0xA0000000 | (attribCount - 1));
+  GPUCMD_AddWrite(GPUREG_VSH_NUM_ATTR, attribCount - 1);
+
+  // Map each vertex attribute to an input register.
+  GPUCMD_AddIncrementalWrites(GPUREG_VSH_ATTRIBUTES_PERMUTATION_LOW,
+                              permutation, 2);
+
+  // Set buffers base.
+  GPUCMD_AddWrite(GPUREG_ATTRIBBUFFERS_LOC, PHYSICAL_LINEAR_BASE >> 3);
+
+  // Handle buffers.
+  for (size_t i = 0; i < GLASS_NUM_ATTRIB_SLOTS; ++i) {
     const size_t index = slots[i];
 
     if (index >= GLASS_NUM_ATTRIB_REGS)
       continue;
 
     const AttributeInfo *attrib = &attribs[index];
-    GPU_FORMATS attribType = GLToGPUAttribType(attrib->type);
 
     if (attrib->physAddr) {
-      if (i < 8)
-        format[0] |= GPU_ATTRIBFMT(i, attrib->count - 1, attribType);
-      else
-        format[1] |= GPU_ATTRIBFMT(i - 8, attrib->count - 1, attribType);
-
-      format[1] &= ~(1 << (16 + i));
-
+      u32 params[3] = {};
+      params[0] = attrib->physAddr - PHYSICAL_LINEAR_BASE;
+      params[1] = index;
+      params[2] = ((attrib->stride & 0xFF) << 16) |
+                  (1 << 28); // TODO: number of times this buffer is used?
+      GPUCMD_AddIncrementalWrites(GPUREG_ATTRIBBUFFER0_OFFSET + (i * 0x03),
+                                  params, 3);
     } else {
-      format[1] |= (1 << (16 + i));
-    }
-
-    if (i < 8)
-      permutation[0] |= (index << (4 * i));
-    else
-      permutation[1] |= (index << (4 * i));
-    ++attribCount;
-  }
-
-  format[1] |= (attribCount << 28);
-
-  GPUCMD_AddIncrementalWrites(GPUREG_ATTRIBBUFFERS_FORMAT_LOW, format, 2);
-  GPUCMD_AddMaskedWrite(GPUREG_VSH_INPUTBUFFER_CONFIG, 0x0B,
-                        0xA0000000 | (attribCount - 1));
-  GPUCMD_AddWrite(GPUREG_VSH_NUM_ATTR, attribCount - 1);
-  GPUCMD_AddIncrementalWrites(GPUREG_VSH_ATTRIBUTES_PERMUTATION_LOW,
-                              permutation, 2);
-
-  // Handle attributes.
-  if (attribCount) {
-    const u32 base = GetLinearBase();
-    GPUCMD_AddWrite(GPUREG_ATTRIBBUFFERS_LOC, base >> 3);
-
-    for (size_t i = 0; i < GLASS_NUM_ATTRIB_SLOTS; ++i) {
-      const size_t index = slots[i];
-
-      if (index >= GLASS_NUM_ATTRIB_REGS)
-        continue;
-
-      const AttributeInfo *attrib = &attribs[index];
-
-      if (attrib->physAddr) {
-        u32 params[3];
-        params[0] = attrib->physAddr - base;
-        params[1] = 0; // TODO
-        params[2] = ((u8)attrib->stride << 16) | ((u8)attrib->count <<
-28); GPUCMD_AddIncrementalWrites(GPUREG_ATTRIBBUFFER0_OFFSET + (i * 0x03),
-                                    params, 3);
-      } else {
-        u32 packed[3];
-        PackFixedAttrib(attrib->components, packed);
-        GPUCMD_AddWrite(GPUREG_FIXEDATTRIB_INDEX, i);
-        GPUCMD_AddIncrementalWrites(GPUREG_FIXEDATTRIB_DATA0, packed, 3);
-      }
+      u32 packed[3] = {};
+      PackFloatVector(attrib->components, packed);
+      GPUCMD_AddWrite(GPUREG_FIXEDATTRIB_INDEX, i);
+      GPUCMD_AddIncrementalWrites(GPUREG_FIXEDATTRIB_DATA0, packed, 3);
     }
   }
 }
-*/
 
 void GLASS_gpu_setCombiners(const CombinerInfo *combiners) {
   Assert(combiners, "Combiners was nullptr!");
@@ -630,10 +633,8 @@ void GLASS_gpu_setDepthMap(const bool enabled, const GLclampf nearVal,
   }
 
   GPUCMD_AddMaskedWrite(GPUREG_DEPTHMAP_ENABLE, 0x01, enabled ? 1 : 0);
-  if (enabled) {
-    GPUCMD_AddWrite(GPUREG_DEPTHMAP_SCALE, f32tof24(nearVal - farVal));
-    GPUCMD_AddWrite(GPUREG_DEPTHMAP_OFFSET, f32tof24(nearVal + offset));
-  }
+  GPUCMD_AddWrite(GPUREG_DEPTHMAP_SCALE, f32tof24(nearVal - farVal));
+  GPUCMD_AddWrite(GPUREG_DEPTHMAP_OFFSET, f32tof24(nearVal + offset));
 }
 
 void GLASS_gpu_setEarlyDepthTest(const bool enabled) {
@@ -744,7 +745,7 @@ void GLASS_gpu_drawElements(const GLenum mode, const GLsizei count,
   const GPU_Primitive_t primitive = GLToGPUDrawMode(mode);
   const u32 gpuType = GLToGPUDrawType(type);
   const u32 physAddr = osConvertVirtToPhys(indices);
-  Assert(physAddr, "Invalid physical address!");
+  Assert(physAddr, "Indices buffer is not linear!");
 
   GPUCMD_AddMaskedWrite(GPUREG_PRIMITIVE_CONFIG, 2,
                         primitive != GPU_TRIANGLES ? primitive
@@ -752,7 +753,7 @@ void GLASS_gpu_drawElements(const GLenum mode, const GLsizei count,
 
   GPUCMD_AddWrite(GPUREG_RESTART_PRIMITIVE, 1);
   GPUCMD_AddWrite(GPUREG_INDEXBUFFER_CONFIG,
-                  (physAddr - GetLinearBase()) | (gpuType << 31));
+                  (physAddr - PHYSICAL_LINEAR_BASE) | (gpuType << 31));
 
   GPUCMD_AddWrite(GPUREG_NUMVERTICES, count);
   GPUCMD_AddWrite(GPUREG_VERTEX_OFFSET, 0);

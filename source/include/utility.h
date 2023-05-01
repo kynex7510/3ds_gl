@@ -36,10 +36,6 @@ void GLASS_utility_unreachable(void) NORETURN;
 #define osConvertPhysToVirt GLASS_utility_convertPhysToVirt
 void *GLASS_utility_convertPhysToVirt(const u32 addr);
 
-// Get linear heap physical base address.
-#define GetLinearBase GLASS_utility_getLinearBase
-u32 GLASS_utility_getLinearBase(void);
-
 // Convert float24 to float.
 #define f24tof32 GLASS_utility_f24tof32
 float GLASS_utility_f24tof32(const u32 f);
@@ -78,7 +74,7 @@ GX_TRANSFER_FORMAT GLASS_utility_GLToGXFBFormat(const GLenum format);
 GPU_COLORBUF GLASS_utility_GLToGPUFBFormat(const GLenum format);
 
 // Convert GL to GPU attribute type.
-#define GLtoGPUAttribType GLASS_utility_GLToGPUAttribType
+#define GLToGPUAttribType GLASS_utility_GLToGPUAttribType
 GPU_FORMATS GLASS_utility_GLToGPUAttribType(const GLenum type);
 
 // Convert GL to GPU test function.

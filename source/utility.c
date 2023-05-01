@@ -2,10 +2,6 @@
 
 #include <string.h>
 
-// Globals
-
-extern u32 __ctru_linear_heap;
-
 // Helpers
 
 #define GetGXControl GLASS_utility_getGXControl
@@ -53,10 +49,6 @@ void *GLASS_utility_convertPhysToVirt(const u32 addr) {
 
 #undef CONVERT_REGION
   return NULL;
-}
-
-u32 GLASS_utility_getLinearBase(void) {
-  return osConvertVirtToPhys((void *)__ctru_linear_heap);
 }
 
 float GLASS_utility_f24tof32(const u32 f) {
@@ -116,8 +108,9 @@ u32 GLASS_utility_convertRGBA8(const GLenum format, const u32 color) {
 
 u32 GLASS_utility_getClearDepth(const GLenum format, const GLclampf factor,
                                 const u8 stencil) {
-  u32 clearDepth = 0;
   Assert(factor >= 0.0 && factor <= 1.0, "Invalid factor!");
+
+  u32 clearDepth = 0;
   switch (format) {
   case GL_DEPTH_COMPONENT16:
     clearDepth = (u32)(0xFFFF * factor);

@@ -59,7 +59,7 @@ static bool GLASS_attribs_readInt(const size_t index, const GLenum pname,
 }
 
 #define SetFixedAttrib GLASS_attribs_setFixedAttrib
-static void GLASS_attribs_setFixedAttrib(const GLuint reg, const size_t count,
+static void GLASS_attribs_setFixedAttrib(const GLuint reg,
                                          const GLfloat *params) {
   if (reg >= GLASS_NUM_ATTRIB_REGS) {
     SetError(GL_INVALID_VALUE);
@@ -71,13 +71,15 @@ static void GLASS_attribs_setFixedAttrib(const GLuint reg, const size_t count,
 
   // Set fixed attribute.
   attrib->type = GL_FLOAT;
-  attrib->count = count;
-  attrib->stride = sizeof(GLfloat) * count;
+  attrib->count = 4;
+  attrib->stride = sizeof(GLfloat) * 4;
   attrib->boundBuffer = 0;
   attrib->physAddr = 0;
 
-  for (size_t i = 0; i < attrib->count; i++)
+  for (size_t i = 0; i < 4; i++)
     attrib->components[i] = params[i];
+
+  ctx->flags |= CONTEXT_FLAG_ATTRIBS;
 }
 
 // Attribs
@@ -96,6 +98,7 @@ void glDisableVertexAttribArray(GLuint index) {
   for (size_t i = 0; i < GLASS_NUM_ATTRIB_SLOTS; i++) {
     if (ctx->attribSlots[i] == index) {
       ctx->attribSlots[i] = GLASS_NUM_ATTRIB_REGS;
+      ctx->flags |= CONTEXT_FLAG_ATTRIBS;
       return;
     }
   }
@@ -112,6 +115,7 @@ void glEnableVertexAttribArray(GLuint index) {
   for (size_t i = 0; i < GLASS_NUM_ATTRIB_SLOTS; i++) {
     if (ctx->attribSlots[i] == GLASS_NUM_ATTRIB_REGS) {
       ctx->attribSlots[i] = index;
+      ctx->flags |= CONTEXT_FLAG_ATTRIBS;
       return;
     }
   }
@@ -193,40 +197,44 @@ void glGetVertexAttribPointerv(GLuint index, GLenum pname, GLvoid **pointer) {
 }
 
 void glVertexAttrib1f(GLuint index, GLfloat v0) {
-  GLfloat values[] = {v0};
-  SetFixedAttrib(index, 1, values);
+  GLfloat values[4] = {v0, 0.0f, 0.0f, 1.0f};
+  SetFixedAttrib(index, values);
 }
 
 void glVertexAttrib2f(GLuint index, GLfloat v0, GLfloat v1) {
-  GLfloat values[] = {v0, v1};
-  SetFixedAttrib(index, 2, values);
+  GLfloat values[4] = {v0, v1, 0.0f, 1.0f};
+  SetFixedAttrib(index, values);
 }
 
 void glVertexAttrib3f(GLuint index, GLfloat v0, GLfloat v1, GLfloat v2) {
-  GLfloat values[] = {v0, v1, v2};
-  SetFixedAttrib(index, 3, values);
+  GLfloat values[4] = {v0, v1, v2, 1.0f};
+  SetFixedAttrib(index, values);
 }
 
 void glVertexAttrib4f(GLuint index, GLfloat v0, GLfloat v1, GLfloat v2,
                       GLfloat v3) {
-  GLfloat values[] = {v0, v1, v2, v3};
-  SetFixedAttrib(index, 4, values);
+  GLfloat values[4] = {v0, v1, v2, v3};
+  SetFixedAttrib(index, values);
 }
 
 void glVertexAttrib1fv(GLuint index, const GLfloat *v) {
-  SetFixedAttrib(index, 1, v);
+  Assert(v, "Attribute data was nullptr!");
+  glVertexAttrib1f(index, v[0]);
 }
 
 void glVertexAttrib2fv(GLuint index, const GLfloat *v) {
-  SetFixedAttrib(index, 2, v);
+  Assert(v, "Attribute data was nullptr!");
+  glVertexAttrib2f(index, v[0], v[1]);
 }
 
 void glVertexAttrib3fv(GLuint index, const GLfloat *v) {
-  SetFixedAttrib(index, 3, v);
+  Assert(v, "Attribute data was nullptr!");
+  glVertexAttrib3f(index, v[0], v[1], v[2]);
 }
 
 void glVertexAttrib4fv(GLuint index, const GLfloat *v) {
-  SetFixedAttrib(index, 4, v);
+  Assert(v, "Attribute data was nullptr!");
+  glVertexAttrib4f(index, v[0], v[1], v[2], v[3]);
 }
 
 void glVertexAttribPointer(GLuint index, GLint size, GLenum type,
@@ -263,7 +271,10 @@ void glVertexAttribPointer(GLuint index, GLint size, GLenum type,
   attrib->stride = stride;
   attrib->boundBuffer = ctx->arrayBuffer;
   attrib->physAddr = physAddr;
+  attrib->components[0] = 0.0f;
+  attrib->components[1] = 0.0f;
+  attrib->components[2] = 0.0f;
+  attrib->components[3] = 1.0f;
 
-  for (size_t i = 0; i < attrib->count; i++)
-    attrib->components[i] = 0.0f;
+  ctx->flags |= CONTEXT_FLAG_ATTRIBS;
 }

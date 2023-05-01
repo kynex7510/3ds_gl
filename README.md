@@ -5,9 +5,9 @@
 ## What doesn't work
 
 - Attributes (kind of)
-- Uniforms
 - Combiners (untested)
 - Textures
+- Geometry shaders
 - All other extensions
 
 ## Credits

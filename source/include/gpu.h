@@ -59,10 +59,6 @@ void GLASS_gpu_setScissorTest(const GPU_SCISSORMODE mode, const GLint x,
 void GLASS_gpu_bindShaders(const ShaderInfo *vertexShader,
                            const ShaderInfo *geometryShader);
 
-// Upload all attributes.
-#define UploadAttributes GLASS_gpu_uploadAttributes
-void GLASS_gpu_uploadAttributes(const AttributeInfo *attribs);
-
 // Upload all const uniforms.
 #define UploadConstUniforms GLASS_gpu_uploadConstUniforms
 void GLASS_gpu_uploadConstUniforms(const ShaderInfo *shader);
@@ -70,6 +66,11 @@ void GLASS_gpu_uploadConstUniforms(const ShaderInfo *shader);
 // Upload all uniforms.
 #define UploadUniforms GLASS_gpu_uploadUniforms
 void GLASS_gpu_uploadUniforms(ShaderInfo *shader);
+
+// Upload all attributes.
+#define UploadAttributes GLASS_gpu_uploadAttributes
+void GLASS_gpu_uploadAttributes(const AttributeInfo *attribs,
+                                const size_t *slots);
 
 // Set texture combiners.
 #define SetCombiners GLASS_gpu_setCombiners

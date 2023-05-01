@@ -239,14 +239,6 @@ CtxImpl *GLASS_context_updateContext(void) {
     g_Context->flags &= ~CONTEXT_FLAG_SCISSOR;
   }
 
-  // Handle attributes.
-  /*
-  if (g_Context->flags & CONTEXT_FLAG_ATTRIBS) {
-    UploadAttributes(g_Context->attribs, g_Context->attribSlots);
-    g_Context->flags &= ~CONTEXT_FLAG_ATTRIBS;
-  }
-  */
-
   // Handle program.
   if (g_Context->flags & CONTEXT_FLAG_PROGRAM) {
     ProgramInfo *pinfo = (ProgramInfo *)g_Context->currentProgram;
@@ -287,6 +279,12 @@ CtxImpl *GLASS_context_updateContext(void) {
 
     if (gs)
       UploadUniforms(gs);
+  }
+
+  // Handle attributes.
+  if (g_Context->flags & CONTEXT_FLAG_ATTRIBS) {
+    UploadAttributes(g_Context->attribs, g_Context->attribSlots);
+    g_Context->flags &= ~CONTEXT_FLAG_ATTRIBS;
   }
 
   // Handle combiners.

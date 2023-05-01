@@ -14,6 +14,8 @@
 
 - In `glVertexAttribPointer` the `normalized` argument must be set to `GL_FALSE`.
 
+- Draw mode for `glDrawArrays` must be one of `GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN, GL_GEOMETRY_PRIMITIVE_PICA`
+
 - The GPU has 16 input registers, but only 12 can be used at the same time for vertex attributes. `glEnableVertexAttribArray` will fail with `GL_OUT_OF_MEMORY` if all 12 slots are used; to use a different register call `glDisableVertexAttribArray` to disable one of the used registers first. 
 
 - If the size of the uniform variable as defined in the shader does not match the size specified in the name of the command used to load its value, and the uniform variable is not of type `bool`, no error will be generated; the other components of the specified uniform variable will remain unchanged.
