@@ -64,7 +64,6 @@ int main() {
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glassSwapBuffers();
     gspWaitForVBlank();
-    svcSleepThread(1ll * 1000 * 1000);
   }
 
   // Finalization.

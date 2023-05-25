@@ -8,10 +8,10 @@
 static void GLASS_internal_getDisplayBuffer(CtxImpl *ctx,
                                             RenderbufferInfo *displayBuffer) {
   u16 width = 0, height = 0;
-  displayBuffer->address =
-      gfxGetFramebuffer(ctx->targetScreen, ctx->targetSide, &height, &width);
+  displayBuffer->address = gfxGetFramebuffer(
+      ctx->exposed.targetScreen, ctx->exposed.targetSide, &height, &width);
   displayBuffer->format =
-      GSPToGLFBFormat(gfxGetScreenFormat(ctx->targetScreen));
+      WrapFBFormat(gfxGetScreenFormat(ctx->exposed.targetScreen));
   displayBuffer->width = width;
   displayBuffer->height = height;
 }
@@ -19,7 +19,9 @@ static void GLASS_internal_getDisplayBuffer(CtxImpl *ctx,
 #define SwapBuffers GLASS_internal_swapBuffers
 static void GLASS_internal_swapBuffers(gxCmdQueue_s *queue) {
   CtxImpl *ctx = (CtxImpl *)queue->user;
-  gfxScreenSwapBuffers(ctx->targetScreen, true /* TODO */);
+  gfxScreenSwapBuffers(ctx->exposed.targetScreen,
+                       ctx->exposed.targetScreen == GFX_TOP &&
+                           ctx->exposed.targetSide == GFX_RIGHT);
   gxCmdQueueSetCallback(queue, NULL, NULL);
 }
 
@@ -44,32 +46,35 @@ void glassDestroyContext(glassCtx *ctx) {
 void glassBindContext(glassCtx *ctx) { BindContext((CtxImpl *)ctx); }
 
 void glassSwapBuffers(void) {
+  RenderbufferInfo displayBuffer;
+  ZeroVar(displayBuffer);
+
   // Execute GPU commands.
   CtxImpl *ctx = UpdateContext();
   GPUFlushAndRunCommands(ctx);
 
-  // Framebuffer might be not set.
-  if (ObjectIsFramebuffer(ctx->framebuffer)) {
-    // Get color buffer.
-    FramebufferInfo *fb = (FramebufferInfo *)ctx->framebuffer;
-    RenderbufferInfo *colorBuffer = fb->colorBuffer;
+  // Framebuffer might not be set.
+  if (!ObjectIsFramebuffer(ctx->framebuffer))
+    return;
 
-    if (colorBuffer) {
-      // Get display buffer.
-      RenderbufferInfo displayBuffer;
-      ZeroVar(displayBuffer);
-      GetDisplayBuffer(ctx, &displayBuffer);
-      Assert(displayBuffer.address, "Display buffer was nullptr!");
+  // Get color buffer.
+  FramebufferInfo *fb = (FramebufferInfo *)ctx->framebuffer;
+  RenderbufferInfo *colorBuffer = fb->colorBuffer;
+  if (!colorBuffer)
+    return;
 
-      // Get transfer flags.
-      const u32 transferFlags = BuildTransferFlags(
-          false, false, false, GLToGXFBFormat(fb->colorBuffer->format),
-          GLToGXFBFormat(displayBuffer.format), ctx->transferScale);
+  // Get display buffer.
+  GetDisplayBuffer(ctx, &displayBuffer);
+  Assert(displayBuffer.address, "Display buffer was nullptr!");
 
-      // Transfer buffer.
-      gxCmdQueueWait(&ctx->gxQueue, -1);
-      gxCmdQueueSetCallback(&ctx->gxQueue, SwapBuffers, (void *)ctx);
-      TransferBuffer(fb->colorBuffer, &displayBuffer, transferFlags);
-    }
-  }
+  // Get transfer flags.
+  const u32 transferFlags = MakeTransferFlags(
+      false, false, false, GetTransferFormatForFB(fb->colorBuffer->format),
+      GetTransferFormatForFB(displayBuffer.format), ctx->exposed.transferScale);
+
+  // Transfer buffer.
+  GPUFlushQueue(ctx, false);
+  gxCmdQueueSetCallback(&ctx->gxQueue, SwapBuffers, (void *)ctx);
+  GPUTransferBuffer(fb->colorBuffer, &displayBuffer, transferFlags);
+  GPURunQueue(ctx, false);
 }

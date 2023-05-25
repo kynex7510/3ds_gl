@@ -52,7 +52,7 @@ void glClear(GLbitfield mask) {
   if (HasColor(mask) || HasDepth(mask)) {
     // Early depth clear is a GPU command, and its execution does not need
     // to be enforced before a clear call is issued. This doesn't apply to
-    // other renderbuffers which rely on a GX call.
+    // other buffers which rely on a GX call.
     ctx = UpdateContext();
     GPUFlushCommands(ctx);
 
@@ -60,27 +60,27 @@ void glClear(GLbitfield mask) {
     FramebufferInfo *fb = (FramebufferInfo *)ctx->framebuffer;
     RenderbufferInfo *colorBuffer = HasColor(mask) ? fb->colorBuffer : NULL;
     u32 clearColor =
-        colorBuffer ? ConvertRGBA8(colorBuffer->format, ctx->clearColor) : 0;
+        colorBuffer ? MakeClearColor(colorBuffer->format, ctx->clearColor) : 0;
     RenderbufferInfo *depthBuffer = HasDepth(mask) ? fb->depthBuffer : NULL;
     u32 clearDepth = depthBuffer
-                         ? GetClearDepth(depthBuffer->format, ctx->clearDepth,
-                                         ctx->clearStencil)
+                         ? MakeClearDepth(depthBuffer->format, ctx->clearDepth,
+                                          ctx->clearStencil)
                          : 0;
-    ClearBuffers(colorBuffer, clearColor, depthBuffer, clearDepth);
+    GPUClearBuffers(colorBuffer, clearColor, depthBuffer, clearDepth);
   }
 }
 
 void glClearColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) {
   CtxImpl *ctx = GetContext();
-  ctx->clearColor = (u32)(0xFF * GLClampFloat(red)) << 24;
-  ctx->clearColor |= (u32)(0xFF * GLClampFloat(green)) << 16;
-  ctx->clearColor |= (u32)(0xFF * GLClampFloat(blue)) << 8;
-  ctx->clearColor |= (u32)(0xFF * GLClampFloat(alpha));
+  ctx->clearColor = (u32)(0xFF * ClampFloat(red)) << 24;
+  ctx->clearColor |= (u32)(0xFF * ClampFloat(green)) << 16;
+  ctx->clearColor |= (u32)(0xFF * ClampFloat(blue)) << 8;
+  ctx->clearColor |= (u32)(0xFF * ClampFloat(alpha));
 }
 
 void glClearDepthf(GLclampf depth) {
   CtxImpl *ctx = GetContext();
-  ctx->clearDepth = GLClampFloat(depth);
+  ctx->clearDepth = ClampFloat(depth);
 }
 
 void glClearStencil(GLint s) {

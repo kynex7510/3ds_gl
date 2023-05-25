@@ -154,7 +154,7 @@ static glassCtx *initTopScreen(void) {
   GLCheck(glGenRenderbuffers(1, &rb));
   GLCheck(glBindFramebuffer(GL_FRAMEBUFFER, fb));
   GLCheck(glBindRenderbuffer(GL_RENDERBUFFER, rb));
-  GLCheck(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB8_OES, 400, 240));
+  GLCheck(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB565, 400, 240));
   GLCheck(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_RENDERBUFFER, rb));
 
@@ -179,7 +179,7 @@ static glassCtx *initBottomScreen(void) {
   GLCheck(glGenRenderbuffers(1, &rb));
   GLCheck(glBindFramebuffer(GL_FRAMEBUFFER, fb));
   GLCheck(glBindRenderbuffer(GL_RENDERBUFFER, rb));
-  GLCheck(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB8_OES, 320, 240));
+  GLCheck(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB565, 320, 240));
   GLCheck(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_RENDERBUFFER, rb));
 
@@ -190,7 +190,7 @@ static glassCtx *initBottomScreen(void) {
 #endif
 
 static void initCommon(glassCtx **topCtx, glassCtx **bottomCtx) {
-  gfxInitDefault();
+  gfxInit(GSP_RGB565_OES, GSP_RGB565_OES, false);
 
 #if defined(COMMON_HAS_CONSOLE)
   consoleInit(GFX_BOTTOM, NULL);

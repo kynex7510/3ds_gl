@@ -63,7 +63,7 @@ void glBlockModePICA(GLenum mode) {
 }
 
 void glClearEarlyDepthPICA(GLclampf depth) {
-  depth = GLClampFloat(depth);
+  depth = ClampFloat(depth);
   CtxImpl *ctx = GetContext();
   if (ctx->clearEarlyDepth != depth) {
     ctx->clearEarlyDepth = depth;
@@ -77,10 +77,10 @@ void glCombinerColorPICA(GLclampf red, GLclampf green, GLclampf blue,
   CtxImpl *ctx = GetContext();
   CombinerInfo *combiner = &ctx->combiners[ctx->combinerStage];
 
-  u32 color = (u32)(0xFF * GLClampFloat(red)) << 24;
-  color |= (u32)(0xFF * GLClampFloat(green)) << 16;
-  color |= (u32)(0xFF * GLClampFloat(blue)) << 8;
-  color |= (u32)(0xFF * GLClampFloat(alpha));
+  u32 color = (u32)(0xFF * ClampFloat(red)) << 24;
+  color |= (u32)(0xFF * ClampFloat(green)) << 16;
+  color |= (u32)(0xFF * ClampFloat(blue)) << 8;
+  color |= (u32)(0xFF * ClampFloat(alpha));
 
   if (combiner->color != color) {
     combiner->color = color;

@@ -18,6 +18,13 @@
 
 // Helpers
 
+#define GetGXControl GLASS_gpu_getGXControl
+static u16 GLASS_gpu_getGXControl(const bool start, const bool finished,
+                                  const GLenum format) {
+  const u16 fillWidth = GetPixelSizeForFB(format);
+  return (u16)start | ((u16)finished << 1) | (fillWidth << 8);
+}
+
 #define UploadShaderBinary GLASS_gpu_uploadShaderBinary
 static void GLASS_gpu_uploadShaderBinary(const ShaderInfo *shader) {
   if (shader->sharedData) {
@@ -200,22 +207,94 @@ void GLASS_gpu_flushCommands(CtxImpl *ctx) {
   }
 }
 
-void GLASS_gpu_flushAndRunCommands(CtxImpl *ctx) {
+void GLASS_gpu_flushQueue(CtxImpl *ctx, bool unbind) {
   Assert(ctx, "Context was nullptr!");
-
-  // Flush pending commands.
-  GPUFlushCommands(ctx);
-
-  // Ensure execution.
   gxCmdQueueWait(&ctx->gxQueue, -1);
   gxCmdQueueStop(&ctx->gxQueue);
   gxCmdQueueClear(&ctx->gxQueue);
 
+  if (unbind)
+    GX_BindQueue(NULL);
+}
+
+void GLASS_gpu_runQueue(CtxImpl *ctx, bool bind) {
+  Assert(ctx, "Context was nullptr!");
+
+  if (bind)
+    GX_BindQueue(&ctx->gxQueue);
+
+  gxCmdQueueRun(&ctx->gxQueue);
+}
+
+void GLASS_gpu_flushAndRunCommands(CtxImpl *ctx) {
+  Assert(ctx, "Context was nullptr!");
+
+  GPUFlushCommands(ctx);
+  GPUFlushQueue(ctx, false);
+
   // Reset offset.
   ctx->cmdBufferOffset = 0;
 
-  // Run queue.
-  gxCmdQueueRun(&ctx->gxQueue);
+  GPURunQueue(ctx, false);
+}
+
+void GLASS_gpu_clearBuffers(RenderbufferInfo *colorBuffer, const u32 clearColor,
+                            RenderbufferInfo *depthBuffer,
+                            const u32 clearDepth) {
+  size_t colorBufferSize = 0;
+  size_t depthBufferSize = 0;
+
+  if (colorBuffer) {
+    colorBufferSize = colorBuffer->width * colorBuffer->height *
+                      GetBytesPerPixel(colorBuffer->format);
+  }
+
+  if (depthBuffer) {
+    depthBufferSize = depthBuffer->width * depthBuffer->height *
+                      GetBytesPerPixel(depthBuffer->format);
+  }
+
+  if (colorBufferSize && depthBufferSize) {
+    const bool colorFirst =
+        (u32)colorBuffer->address < (u32)depthBuffer->address;
+    if (colorFirst) {
+      GX_MemoryFill((u32 *)colorBuffer->address, clearColor,
+                    (u32 *)(colorBuffer->address + colorBufferSize),
+                    GetGXControl(true, false, colorBuffer->format),
+                    (u32 *)(depthBuffer->address), clearDepth,
+                    (u32 *)(depthBuffer->address + depthBufferSize),
+                    GetGXControl(true, false, depthBuffer->format));
+    } else {
+      GX_MemoryFill((u32 *)(depthBuffer->address), clearDepth,
+                    (u32 *)(depthBuffer->address + depthBufferSize),
+                    GetGXControl(true, false, depthBuffer->format),
+                    (u32 *)(colorBuffer->address), clearColor,
+                    (u32 *)(colorBuffer->address + colorBufferSize),
+                    GetGXControl(true, false, colorBuffer->format));
+    }
+  } else if (colorBufferSize) {
+    GX_MemoryFill((u32 *)(colorBuffer->address), clearColor,
+                  (u32 *)(colorBuffer->address + colorBufferSize),
+                  GetGXControl(true, false, colorBuffer->format), NULL, 0, NULL,
+                  0);
+  } else if (depthBufferSize) {
+    GX_MemoryFill((u32 *)(depthBuffer->address), clearDepth,
+                  (u32 *)(depthBuffer->address + depthBufferSize),
+                  GetGXControl(true, false, depthBuffer->format), NULL, 0, NULL,
+                  0);
+  }
+}
+
+void GLASS_gpu_transferBuffer(const RenderbufferInfo *colorBuffer,
+                              const RenderbufferInfo *displayBuffer,
+                              const u32 flags) {
+  Assert(colorBuffer, "Color buffer was nullptr!");
+  Assert(displayBuffer, "Display buffer was nullptr!");
+  GX_DisplayTransfer((u32 *)(colorBuffer->address),
+                     GX_BUFFER_DIM(colorBuffer->height, colorBuffer->width),
+                     (u32 *)(displayBuffer->address),
+                     GX_BUFFER_DIM(displayBuffer->height, displayBuffer->width),
+                     flags);
 }
 
 void GLASS_gpu_bindFramebuffer(const FramebufferInfo *info, bool block32) {
@@ -258,15 +337,15 @@ void GLASS_gpu_bindFramebuffer(const FramebufferInfo *info, bool block32) {
   // Set buffer parameters.
   if (colorBuffer) {
     GPUCMD_AddWrite(GPUREG_COLORBUFFER_FORMAT,
-                    (GLToGPUFBFormat(colorFormat) << 16) |
-                        GetFBPixelSize(colorFormat));
+                    (WrapFBFormat(colorFormat) << 16) |
+                        GetPixelSizeForFB(colorFormat));
     params[0] = params[1] = 0x0F;
   } else {
     params[0] = params[1] = 0;
   }
 
   if (depthBuffer) {
-    GPUCMD_AddWrite(GPUREG_DEPTHBUFFER_FORMAT, GLToGPUFBFormat(depthFormat));
+    GPUCMD_AddWrite(GPUREG_DEPTHBUFFER_FORMAT, WrapFBFormat(depthFormat));
     params[2] = params[3] = 0x03;
   } else {
     params[2] = params[3] = 0;
@@ -486,7 +565,7 @@ void GLASS_gpu_uploadAttributes(const AttributeInfo *attribs,
       continue;
 
     const AttributeInfo *attrib = &attribs[reg];
-    GPU_FORMATS attribType = GLToGPUAttribType(attrib->type);
+    GPU_FORMATS attribType = GetTypeForAttribType(attrib->type);
 
     if (attrib->physAddr) {
       if (i < 8)
@@ -557,23 +636,23 @@ void GLASS_gpu_setCombiners(const CombinerInfo *combiners) {
     u32 params[5];
     const CombinerInfo *combiner = &combiners[i];
 
-    params[0] = GLToGPUCombinerSrc(combiner->rgbSrc[0]);
-    params[0] |= (GLToGPUCombinerSrc(combiner->rgbSrc[1]) << 4);
-    params[0] |= (GLToGPUCombinerSrc(combiner->rgbSrc[2]) << 8);
-    params[0] |= (GLToGPUCombinerSrc(combiner->alphaSrc[0]) << 16);
-    params[0] |= (GLToGPUCombinerSrc(combiner->alphaSrc[1]) << 20);
-    params[0] |= (GLToGPUCombinerSrc(combiner->alphaSrc[2]) << 24);
-    params[1] = GLToGPUCombinerOpRGB(combiner->rgbOp[0]);
-    params[1] |= (GLToGPUCombinerOpRGB(combiner->rgbOp[1]) << 4);
-    params[1] |= (GLToGPUCombinerOpRGB(combiner->rgbOp[2]) << 8);
-    params[1] |= (GLToGPUCombinerOpAlpha(combiner->alphaOp[0]) << 12);
-    params[1] |= (GLToGPUCombinerOpAlpha(combiner->alphaOp[1]) << 16);
-    params[1] |= (GLToGPUCombinerOpAlpha(combiner->alphaOp[2]) << 20);
-    params[2] = GLToGPUCombinerFunc(combiner->rgbFunc);
-    params[2] |= (GLToGPUCombinerFunc(combiner->alphaFunc) << 16);
+    params[0] = GetCombinerSrc(combiner->rgbSrc[0]);
+    params[0] |= (GetCombinerSrc(combiner->rgbSrc[1]) << 4);
+    params[0] |= (GetCombinerSrc(combiner->rgbSrc[2]) << 8);
+    params[0] |= (GetCombinerSrc(combiner->alphaSrc[0]) << 16);
+    params[0] |= (GetCombinerSrc(combiner->alphaSrc[1]) << 20);
+    params[0] |= (GetCombinerSrc(combiner->alphaSrc[2]) << 24);
+    params[1] = GetCombinerOpRGB(combiner->rgbOp[0]);
+    params[1] |= (GetCombinerOpRGB(combiner->rgbOp[1]) << 4);
+    params[1] |= (GetCombinerOpRGB(combiner->rgbOp[2]) << 8);
+    params[1] |= (GetCombinerOpAlpha(combiner->alphaOp[0]) << 12);
+    params[1] |= (GetCombinerOpAlpha(combiner->alphaOp[1]) << 16);
+    params[1] |= (GetCombinerOpAlpha(combiner->alphaOp[2]) << 20);
+    params[2] = GetCombinerFunc(combiner->rgbFunc);
+    params[2] |= (GetCombinerFunc(combiner->alphaFunc) << 16);
     params[3] = combiner->color;
-    params[4] = GLToGPUCombinerScale(combiner->rgbScale);
-    params[4] |= (GLToGPUCombinerScale(combiner->alphaScale) << 16);
+    params[4] = GetCombinerScale(combiner->rgbScale);
+    params[4] |= (GetCombinerScale(combiner->alphaScale) << 16);
 
     GPUCMD_AddIncrementalWrites(offsets[i], params, 5);
   }
@@ -608,8 +687,7 @@ void GLASS_gpu_setColorDepthMask(const bool writeRed, const bool writeGreen,
                (writeBlue ? 0x0400 : 0x00) | (writeAlpha ? 0x0800 : 0x00));
 
   if (depthTest) {
-    value |=
-        (GLToGPUTestFunc(depthFunc) << 4) | (writeDepth ? 0x1000 : 0x00) | 1;
+    value |= (GetTestFunc(depthFunc) << 4) | (writeDepth ? 0x1000 : 0x00) | 1;
   }
 
   GPUCMD_AddMaskedWrite(GPUREG_DEPTH_COLOR_MASK, 0x03, value);
@@ -660,7 +738,7 @@ void GLASS_gpu_setStencilTest(const bool enabled, const GLenum func,
                               const GLuint writeMask) {
   u32 value = enabled ? 1 : 0;
   if (enabled) {
-    value |= (GLToGPUTestFunc(func) << 4);
+    value |= (GetTestFunc(func) << 4);
     value |= ((u8)writeMask << 8);
     value |= ((int8_t)ref << 16);
     value |= ((u8)mask << 24);
@@ -672,9 +750,8 @@ void GLASS_gpu_setStencilTest(const bool enabled, const GLenum func,
 void GLASS_gpu_setStencilOp(const GLenum sfail, const GLenum dpfail,
                             const GLenum dppass) {
   GPUCMD_AddMaskedWrite(GPUREG_STENCIL_OP, 0x03,
-                        GLToGPUStencilOp(sfail) |
-                            (GLToGPUStencilOp(dpfail) << 4) |
-                            (GLToGPUStencilOp(dppass) << 8));
+                        GetStencilOp(sfail) | (GetStencilOp(dpfail) << 4) |
+                            (GetStencilOp(dppass) << 8));
 }
 
 void GLASS_gpu_setCullFace(const bool enabled, const GLenum cullFace,
@@ -694,7 +771,7 @@ void GLASS_gpu_setAlphaTest(const bool enabled, const GLenum func,
   Assert(ref >= 0.0f && ref <= 1.0f, "Invalid reference value!");
   u32 value = enabled ? 1 : 0;
   if (enabled) {
-    value |= (GLToGPUTestFunc(func) << 4);
+    value |= (GetTestFunc(func) << 4);
     value |= ((u8)(ref * 0xFF) << 8);
   }
 
@@ -704,12 +781,12 @@ void GLASS_gpu_setAlphaTest(const bool enabled, const GLenum func,
 void GLASS_gpu_setBlendFunc(const GLenum rgbEq, const GLenum alphaEq,
                             const GLenum srcColor, const GLenum dstColor,
                             const GLenum srcAlpha, const GLenum dstAlpha) {
-  GPU_BLENDEQUATION gpuRGBEq = GLToGPUBlendEq(rgbEq);
-  GPU_BLENDEQUATION gpuAlphaEq = GLToGPUBlendEq(alphaEq);
-  GPU_BLENDFACTOR gpuSrcColor = GLToGPUBlendFunc(srcColor);
-  GPU_BLENDFACTOR gpuDstColor = GLToGPUBlendFunc(dstColor);
-  GPU_BLENDFACTOR gpuSrcAlpha = GLToGPUBlendFunc(srcAlpha);
-  GPU_BLENDFACTOR gpuDstAlpha = GLToGPUBlendFunc(dstAlpha);
+  const GPU_BLENDEQUATION gpuRGBEq = GetBlendEq(rgbEq);
+  const GPU_BLENDEQUATION gpuAlphaEq = GetBlendEq(alphaEq);
+  const GPU_BLENDFACTOR gpuSrcColor = GetBlendFactor(srcColor);
+  const GPU_BLENDFACTOR gpuDstColor = GetBlendFactor(dstColor);
+  const GPU_BLENDFACTOR gpuSrcAlpha = GetBlendFactor(srcAlpha);
+  const GPU_BLENDFACTOR gpuDstAlpha = GetBlendFactor(dstAlpha);
 
   GPUCMD_AddWrite(GPUREG_BLEND_FUNC, (gpuDstAlpha << 28) | (gpuSrcAlpha << 24) |
                                          (gpuDstColor << 20) |
@@ -722,12 +799,12 @@ void GLASS_gpu_setBlendColor(const u32 color) {
 }
 
 void GLASS_gpu_setLogicOp(const GLenum op) {
-  GPUCMD_AddMaskedWrite(GPUREG_LOGIC_OP, 0x01, GLToGPULOP(op));
+  GPUCMD_AddMaskedWrite(GPUREG_LOGIC_OP, 0x01, GetLogicOp(op));
 }
 
 void GLASS_gpu_drawArrays(const GLenum mode, const GLint first,
                           const GLsizei count) {
-  GPUCMD_AddMaskedWrite(GPUREG_PRIMITIVE_CONFIG, 2, GLToGPUDrawMode(mode));
+  GPUCMD_AddMaskedWrite(GPUREG_PRIMITIVE_CONFIG, 2, GetDrawPrimitive(mode));
   GPUCMD_AddWrite(GPUREG_RESTART_PRIMITIVE, 1);
   GPUCMD_AddWrite(GPUREG_INDEXBUFFER_CONFIG, 0x80000000);
   GPUCMD_AddWrite(GPUREG_NUMVERTICES, count);
@@ -742,8 +819,8 @@ void GLASS_gpu_drawArrays(const GLenum mode, const GLint first,
 
 void GLASS_gpu_drawElements(const GLenum mode, const GLsizei count,
                             const GLenum type, const GLvoid *indices) {
-  const GPU_Primitive_t primitive = GLToGPUDrawMode(mode);
-  const u32 gpuType = GLToGPUDrawType(type);
+  const GPU_Primitive_t primitive = GetDrawPrimitive(mode);
+  const u32 gpuType = GetDrawType(type);
   const u32 physAddr = osConvertVirtToPhys(indices);
   Assert(physAddr, "Indices buffer is not linear!");
 

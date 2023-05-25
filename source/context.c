@@ -21,9 +21,9 @@ void GLASS_context_initContext(CtxImpl *ctx) {
   ctx->cmdBufferSize = 0;
   ctx->cmdBufferOffset = 0;
   ZeroVar(ctx->gxQueue);
-  ctx->targetScreen = GFX_TOP;
-  ctx->targetSide = GFX_LEFT;
-  ctx->transferScale = GX_TRANSFER_SCALE_NO;
+  ctx->exposed.targetScreen = GFX_TOP;
+  ctx->exposed.targetSide = GFX_LEFT;
+  ctx->exposed.transferScale = GX_TRANSFER_SCALE_NO;
   GPUInit(ctx);
 
   // Buffers.
@@ -164,13 +164,8 @@ void GLASS_context_finiContext(CtxImpl *ctx) {
 void GLASS_context_bindContext(CtxImpl *ctx) {
   const bool skipUpdate = (ctx == g_Context) || (!g_Context && ctx == g_OldCtx);
 
-  // Stop old queue.
-  if (g_Context) {
-    gxCmdQueueWait(&g_Context->gxQueue, -1);
-    gxCmdQueueStop(&g_Context->gxQueue);
-    gxCmdQueueClear(&g_Context->gxQueue);
-    GX_BindQueue(NULL);
-  }
+  if (g_Context)
+    GPUFlushQueue(g_Context, true);
 
   // Bind context.
   if (ctx != g_Context) {
@@ -178,10 +173,9 @@ void GLASS_context_bindContext(CtxImpl *ctx) {
     g_Context = ctx;
   }
 
-  // Start new queue.
+  // Run new queue.
   if (g_Context) {
-    GX_BindQueue(&g_Context->gxQueue);
-    gxCmdQueueRun(&g_Context->gxQueue);
+    GPURunQueue(g_Context, true);
 
     if (!skipUpdate)
       g_Context->flags = CONTEXT_FLAG_ALL;

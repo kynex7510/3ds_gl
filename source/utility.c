@@ -2,15 +2,6 @@
 
 #include <string.h>
 
-// Helpers
-
-#define GetGXControl GLASS_utility_getGXControl
-static u16 GLASS_utility_getGXControl(const bool start, const bool finished,
-                                      const GLenum format) {
-  const u16 fillWidth = GetFBPixelSize(format);
-  return (u16)start | ((u16)finished << 1) | (fillWidth << 8);
-}
-
 // Utility
 
 #ifndef NDEBUG
@@ -72,7 +63,7 @@ float GLASS_utility_f24tof32(const u32 f) {
   return cast.val;
 }
 
-u32 GLASS_utility_convertRGBA8(const GLenum format, const u32 color) {
+u32 GLASS_utility_makeClearColor(const GLenum format, const u32 color) {
   u32 cvt = 0;
 
   switch (format) {
@@ -100,14 +91,14 @@ u32 GLASS_utility_convertRGBA8(const GLenum format, const u32 color) {
     cvt |= (color >> 8) & 0x1F;
     break;
   default:
-    Unreachable("Invalid format!");
+    Unreachable("Invalid color format!");
   }
 
   return cvt;
 }
 
-u32 GLASS_utility_getClearDepth(const GLenum format, const GLclampf factor,
-                                const u8 stencil) {
+u32 GLASS_utility_makeClearDepth(const GLenum format, const GLclampf factor,
+                                 const u8 stencil) {
   Assert(factor >= 0.0 && factor <= 1.0, "Invalid factor!");
 
   u32 clearDepth = 0;
@@ -122,17 +113,13 @@ u32 GLASS_utility_getClearDepth(const GLenum format, const GLclampf factor,
     clearDepth = (((u32)(0xFFFFFF * factor) << 8) | stencil);
     break;
   default:
-    Unreachable("Invalid format!");
+    Unreachable("Invalid depth format!");
   }
 
   return clearDepth;
 }
 
-float GLASS_utility_GLClampFloat(const float f) {
-  return f < 0.0 ? 0.0 : (f > 1.0 ? 1.0 : f);
-}
-
-size_t GLASS_utility_getFBFormatBytes(const GLenum format) {
+size_t GLASS_utility_getBytesPerPixel(const GLenum format) {
   switch (format) {
   case GL_RGBA8_OES:
   case GL_DEPTH24_STENCIL8_EXT:
@@ -147,36 +134,44 @@ size_t GLASS_utility_getFBFormatBytes(const GLenum format) {
     return 2;
   }
 
+  Unreachable("Invalid pixel format!");
+}
+
+size_t GLASS_utility_getPixelSizeForFB(const GLenum format) {
+  switch (format) {
+  case GL_RGBA8_OES:
+    return 2;
+  case GL_RGB5_A1:
+  case GL_RGB565:
+  case GL_RGBA4:
+    return 0;
+  }
+
   Unreachable("Invalid framebuffer format!");
 }
 
-size_t GLASS_utility_getFBPixelSize(const GLenum format) {
-  return GetFBFormatBytes(format) - 2;
-}
-
-GLenum GLASS_utility_GSPToGLFBFormat(const GSPGPU_FramebufferFormat format) {
+GLenum GLASS_utility_wrapFBFormat(const GSPGPU_FramebufferFormat format) {
   switch (format) {
   case GSP_RGBA8_OES:
     return GL_RGBA8_OES;
-  case GSP_BGR8_OES:
-    return GL_RGB8_OES;
   case GSP_RGB565_OES:
     return GL_RGB565;
   case GSP_RGB5_A1_OES:
     return GL_RGB5_A1;
   case GSP_RGBA4_OES:
     return GL_RGBA4;
+  case GSP_BGR8_OES: // Unsupported.
   }
 
-  Unreachable("Invalid GSP format!");
+  Unreachable("Invalid GSP framebuffer format!");
 }
 
-GX_TRANSFER_FORMAT GLASS_utility_GLToGXFBFormat(const GLenum format) {
+GX_TRANSFER_FORMAT GLASS_utility_getTransferFormatForFB(const GLenum format) {
   switch (format) {
-  case GL_RGBA8_OES:
+  case GL_RGBA8:
     return GX_TRANSFER_FMT_RGBA8;
-  case GL_RGB8_OES:
-    return GX_TRANSFER_FMT_RGB8;
+  case GL_BGR8:
+    return GX_TRANSFER_FMT_RGB8; // Misnomer.
   case GL_RGB565:
     return GX_TRANSFER_FMT_RGB565;
   case GL_RGB5_A1:
@@ -188,9 +183,9 @@ GX_TRANSFER_FORMAT GLASS_utility_GLToGXFBFormat(const GLenum format) {
   Unreachable("Invalid framebuffer format!");
 }
 
-GPU_COLORBUF GLASS_utility_GLToGPUFBFormat(const GLenum format) {
+GPU_COLORBUF GLASS_utility_getRBFormat(const GLenum format) {
   switch (format) {
-  case GL_RGBA8_OES:
+  case GL_RGBA8:
     return GPU_RB_RGBA8;
   case GL_RGB8_OES:
     return GPU_RB_RGB8;
@@ -208,10 +203,10 @@ GPU_COLORBUF GLASS_utility_GLToGPUFBFormat(const GLenum format) {
     return GPU_RB_DEPTH24_STENCIL8;
   }
 
-  Unreachable("Invalid framebuffer format!");
+  Unreachable("Invalid renderbuffer format!");
 }
 
-GPU_FORMATS GLASS_utility_GLToGPUAttribType(const GLenum type) {
+GPU_FORMATS GLASS_utility_getTypeForAttribType(const GLenum type) {
   switch (type) {
   case GL_BYTE:
     return GPU_BYTE;
@@ -226,7 +221,7 @@ GPU_FORMATS GLASS_utility_GLToGPUAttribType(const GLenum type) {
   Unreachable("Invalid attribute type!");
 }
 
-GPU_TESTFUNC GLASS_utility_GLToGPUTestFunc(const GLenum func) {
+GPU_TESTFUNC GLASS_utility_getTestFunc(const GLenum func) {
   switch (func) {
   case GL_NEVER:
     return GPU_NEVER;
@@ -249,7 +244,7 @@ GPU_TESTFUNC GLASS_utility_GLToGPUTestFunc(const GLenum func) {
   Unreachable("Invalid test function!");
 }
 
-GPU_EARLYDEPTHFUNC GLASS_utility_GLToGPUEarlyDepthFunc(const GLenum func) {
+GPU_EARLYDEPTHFUNC GLASS_utility_getEarlyDepthFunc(const GLenum func) {
   switch (func) {
   case GL_LESS:
     return GPU_EARLYDEPTH_LESS;
@@ -264,7 +259,7 @@ GPU_EARLYDEPTHFUNC GLASS_utility_GLToGPUEarlyDepthFunc(const GLenum func) {
   Unreachable("Invalid early depth function!");
 }
 
-GPU_STENCILOP GLASS_utility_GLToGPUStencilOp(const GLenum op) {
+GPU_STENCILOP GLASS_utility_getStencilOp(const GLenum op) {
   switch (op) {
   case GL_KEEP:
     return GPU_STENCIL_KEEP;
@@ -287,7 +282,7 @@ GPU_STENCILOP GLASS_utility_GLToGPUStencilOp(const GLenum op) {
   Unreachable("Invalid stencil operation!");
 }
 
-GPU_BLENDEQUATION GLASS_utility_GLToGPUBlendEq(const GLenum eq) {
+GPU_BLENDEQUATION GLASS_utility_getBlendEq(const GLenum eq) {
   switch (eq) {
   case GL_FUNC_ADD:
     return GPU_BLEND_ADD;
@@ -304,7 +299,7 @@ GPU_BLENDEQUATION GLASS_utility_GLToGPUBlendEq(const GLenum eq) {
   Unreachable("Invalid blend equation!");
 }
 
-GPU_BLENDFACTOR GLASS_utility_GLToGPUBlendFunc(const GLenum func) {
+GPU_BLENDFACTOR GLASS_utility_getBlendFactor(const GLenum func) {
   switch (func) {
   case GL_ZERO:
     return GPU_ZERO;
@@ -341,7 +336,7 @@ GPU_BLENDFACTOR GLASS_utility_GLToGPUBlendFunc(const GLenum func) {
   Unreachable("Invalid blend function!");
 }
 
-GPU_LOGICOP GLASS_utility_GLToGPULOP(const GLenum op) {
+GPU_LOGICOP GLASS_utility_getLogicOp(const GLenum op) {
   switch (op) {
   case GL_CLEAR:
     return GPU_LOGICOP_CLEAR;
@@ -377,10 +372,10 @@ GPU_LOGICOP GLASS_utility_GLToGPULOP(const GLenum op) {
     return GPU_LOGICOP_SET;
   }
 
-  Unreachable("Invalid operator!");
+  Unreachable("Invalid logic operator!");
 }
 
-GPU_TEVSRC GLASS_utility_GLToGPUCombinerSrc(const GLenum src) {
+GPU_TEVSRC GLASS_utility_getCombinerSrc(const GLenum src) {
   switch (src) {
   case GL_PRIMARY_COLOR:
     return GPU_PRIMARY_COLOR;
@@ -407,7 +402,7 @@ GPU_TEVSRC GLASS_utility_GLToGPUCombinerSrc(const GLenum src) {
   Unreachable("Invalid combiner source!");
 }
 
-GPU_TEVOP_RGB GLASS_utility_GLToGPUCombinerOpRGB(const GLenum op) {
+GPU_TEVOP_RGB GLASS_utility_getCombinerOpRGB(const GLenum op) {
   switch (op) {
   case GL_SRC_COLOR:
     return GPU_TEVOP_RGB_SRC_COLOR;
@@ -434,7 +429,7 @@ GPU_TEVOP_RGB GLASS_utility_GLToGPUCombinerOpRGB(const GLenum op) {
   Unreachable("Invalid combiner RGB operand!");
 }
 
-GPU_TEVOP_A GLASS_utility_GLToGPUCombinerOpAlpha(const GLenum op) {
+GPU_TEVOP_A GLASS_utility_getCombinerOpAlpha(const GLenum op) {
   switch (op) {
   case GL_SRC_ALPHA:
     return GPU_TEVOP_A_SRC_ALPHA;
@@ -457,7 +452,7 @@ GPU_TEVOP_A GLASS_utility_GLToGPUCombinerOpAlpha(const GLenum op) {
   Unreachable("Invalid combiner alpha operand!");
 }
 
-GPU_COMBINEFUNC GLASS_utility_GLToGPUCombinerFunc(const GLenum func) {
+GPU_COMBINEFUNC GLASS_utility_getCombinerFunc(const GLenum func) {
   switch (func) {
   case GL_REPLACE:
     return GPU_REPLACE;
@@ -484,7 +479,7 @@ GPU_COMBINEFUNC GLASS_utility_GLToGPUCombinerFunc(const GLenum func) {
   Unreachable("Invalid combiner function!");
 }
 
-GPU_TEVSCALE GLASS_utility_GLToGPUCombinerScale(const GLfloat scale) {
+GPU_TEVSCALE GLASS_utility_getCombinerScale(const GLfloat scale) {
   if (scale == 1.0f)
     return GPU_TEVSCALE_1;
 
@@ -497,7 +492,7 @@ GPU_TEVSCALE GLASS_utility_GLToGPUCombinerScale(const GLfloat scale) {
   Unreachable("Invalid combiner scale!");
 }
 
-GPU_Primitive_t GLASS_utility_GLToGPUDrawMode(const GLenum mode) {
+GPU_Primitive_t GLASS_utility_getDrawPrimitive(const GLenum mode) {
   switch (mode) {
   case GL_TRIANGLES:
     return GPU_TRIANGLES;
@@ -512,7 +507,7 @@ GPU_Primitive_t GLASS_utility_GLToGPUDrawMode(const GLenum mode) {
   Unreachable("Invalid draw mode!");
 }
 
-u32 GLASS_utility_GLToGPUDrawType(const GLenum type) {
+u32 GLASS_utility_getDrawType(const GLenum type) {
   switch (type) {
   case GL_UNSIGNED_BYTE:
     return 0;
@@ -523,74 +518,14 @@ u32 GLASS_utility_GLToGPUDrawType(const GLenum type) {
   Unreachable("Invalid draw type!");
 }
 
-u32 GLASS_utility_buildTransferFlags(const bool flipVertical, const bool tilted,
-                                     const bool rawCopy,
-                                     const GX_TRANSFER_FORMAT inputFormat,
-                                     const GX_TRANSFER_FORMAT outputFormat,
-                                     const GX_TRANSFER_SCALE scaling) {
+u32 GLASS_utility_makeTransferFlags(const bool flipVertical, const bool tilted,
+                                    const bool rawCopy,
+                                    const GX_TRANSFER_FORMAT inputFormat,
+                                    const GX_TRANSFER_FORMAT outputFormat,
+                                    const GX_TRANSFER_SCALE scaling) {
   return GX_TRANSFER_FLIP_VERT(flipVertical) | GX_TRANSFER_OUT_TILED(tilted) |
          GX_TRANSFER_RAW_COPY(rawCopy) | GX_TRANSFER_IN_FORMAT(inputFormat) |
          GX_TRANSFER_OUT_FORMAT(outputFormat) | GX_TRANSFER_SCALING(scaling);
-}
-
-void GLASS_utility_clearBuffers(RenderbufferInfo *colorBuffer,
-                                const u32 clearColor,
-                                RenderbufferInfo *depthBuffer,
-                                const u32 clearDepth) {
-  size_t colorBufferSize = 0;
-  size_t depthBufferSize = 0;
-
-  if (colorBuffer) {
-    colorBufferSize = colorBuffer->width * colorBuffer->height *
-                      GetFBFormatBytes(colorBuffer->format);
-  }
-
-  if (depthBuffer) {
-    depthBufferSize = depthBuffer->width * depthBuffer->height *
-                      GetFBFormatBytes(depthBuffer->format);
-  }
-
-  if (colorBufferSize && depthBufferSize) {
-    const bool colorFirst =
-        (u32)colorBuffer->address < (u32)depthBuffer->address;
-    if (colorFirst) {
-      GX_MemoryFill((u32 *)colorBuffer->address, clearColor,
-                    (u32 *)(colorBuffer->address + colorBufferSize),
-                    GetGXControl(true, false, colorBuffer->format),
-                    (u32 *)(depthBuffer->address), clearDepth,
-                    (u32 *)(depthBuffer->address + depthBufferSize),
-                    GetGXControl(true, false, depthBuffer->format));
-    } else {
-      GX_MemoryFill((u32 *)(depthBuffer->address), clearDepth,
-                    (u32 *)(depthBuffer->address + depthBufferSize),
-                    GetGXControl(true, false, depthBuffer->format),
-                    (u32 *)(colorBuffer->address), clearColor,
-                    (u32 *)(colorBuffer->address + colorBufferSize),
-                    GetGXControl(true, false, colorBuffer->format));
-    }
-  } else if (colorBufferSize) {
-    GX_MemoryFill((u32 *)(colorBuffer->address), clearColor,
-                  (u32 *)(colorBuffer->address + colorBufferSize),
-                  GetGXControl(true, false, colorBuffer->format), NULL, 0, NULL,
-                  0);
-  } else if (depthBufferSize) {
-    GX_MemoryFill((u32 *)(depthBuffer->address), clearDepth,
-                  (u32 *)(depthBuffer->address + depthBufferSize),
-                  GetGXControl(true, false, depthBuffer->format), NULL, 0, NULL,
-                  0);
-  }
-}
-
-void GLASS_utility_transferBuffer(const RenderbufferInfo *colorBuffer,
-                                  const RenderbufferInfo *displayBuffer,
-                                  const u32 flags) {
-  Assert(colorBuffer, "Color buffer was nullptr!");
-  Assert(displayBuffer, "Display buffer was nullptr!");
-  GX_DisplayTransfer((u32 *)(colorBuffer->address),
-                     GX_BUFFER_DIM(colorBuffer->height, colorBuffer->width),
-                     (u32 *)(displayBuffer->address),
-                     GX_BUFFER_DIM(displayBuffer->height, displayBuffer->width),
-                     flags);
 }
 
 void GLASS_utility_packIntVector(const u32 *in, u32 *out) {

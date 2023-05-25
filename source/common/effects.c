@@ -60,10 +60,10 @@ void glAlphaFunc(GLenum func, GLclampf ref) {
 void glBlendColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) {
   CtxImpl *ctx = GetContext();
 
-  u32 blendColor = (u32)(0xFF * GLClampFloat(red)) << 24;
-  blendColor |= (u32)(0xFF * GLClampFloat(green)) << 16;
-  blendColor |= (u32)(0xFF * GLClampFloat(blue)) << 8;
-  blendColor |= (u32)(0xFF * GLClampFloat(alpha));
+  u32 blendColor = (u32)(0xFF * ClampFloat(red)) << 24;
+  blendColor |= (u32)(0xFF * ClampFloat(green)) << 16;
+  blendColor |= (u32)(0xFF * ClampFloat(blue)) << 8;
+  blendColor |= (u32)(0xFF * ClampFloat(alpha));
 
   if (ctx->blendColor != blendColor) {
     ctx->blendColor = blendColor;
@@ -171,8 +171,8 @@ void glDepthMask(GLboolean flag) {
 
 void glDepthRangef(GLclampf nearVal, GLclampf farVal) {
   CtxImpl *ctx = GetContext();
-  ctx->depthNear = GLClampFloat(nearVal);
-  ctx->depthFar = GLClampFloat(farVal);
+  ctx->depthNear = ClampFloat(nearVal);
+  ctx->depthFar = ClampFloat(farVal);
   if (ctx->depthTest)
     ctx->flags |= CONTEXT_FLAG_DEPTHMAP;
 }

@@ -1,7 +1,14 @@
 #include "context.h"
 #include "utility.h"
 
-#define IsDepthBuffer(format) (GetDepthSize((format)) != 0)
+#define IsColorFormat(format)                                                  \
+  (((format) == GL_RGBA8_OES) || ((format) == GL_RGB5_A1) ||                   \
+   ((format) == GL_RGB565) || ((format) == GL_RGBA4))
+
+#define IsDepthFormat(format)                                                  \
+  (((format) == GL_DEPTH_COMPONENT16) ||                                       \
+   ((format) == GL_DEPTH_COMPONENT24_OES) ||                                   \
+   ((format) == GL_DEPTH24_STENCIL8_EXT))
 
 // Helpers
 
@@ -11,8 +18,6 @@ static GLint GLASS_framebuffer_getColorSize(const GLenum format,
   switch (format) {
   case GL_RGBA8_OES:
     return 8;
-  case GL_RGB8_OES:
-    return color == GL_RENDERBUFFER_ALPHA_SIZE ? 0 : 4;
   case GL_RGB5_A1:
     return color == GL_RENDERBUFFER_ALPHA_SIZE ? 1 : 5;
   case GL_RGB565:
@@ -26,7 +31,7 @@ static GLint GLASS_framebuffer_getColorSize(const GLenum format,
     return 4;
   }
 
-  return 0;
+  Unreachable("Invalid color format!");
 }
 
 #define GetDepthSize GLASS_framebuffer_getDepthSize
@@ -39,7 +44,7 @@ static GLint GLASS_framebuffer_getDepthSize(const GLenum format) {
     return 24;
   }
 
-  return 0;
+  Unreachable("Invalid depth format!");
 }
 
 // Framebuffer
@@ -346,21 +351,14 @@ GLboolean glIsRenderbuffer(GLuint renderbuffer) {
 
 void glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width,
                            GLsizei height) {
-  if (target != GL_RENDERBUFFER) {
+  if (target != GL_RENDERBUFFER ||
+      (!IsColorFormat(internalformat) && !IsDepthFormat(internalformat))) {
     SetError(GL_INVALID_ENUM);
     return;
   }
 
   if (width <= 0 || height <= 0 || width > 1024 || height > 1024) {
     SetError(GL_INVALID_VALUE);
-    return;
-  }
-
-  // Get buffer size.
-  const size_t bufferSize = width * height * GetFBFormatBytes(internalformat);
-
-  if (!bufferSize) {
-    SetError(GL_INVALID_ENUM);
     return;
   }
 
@@ -375,16 +373,18 @@ void glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width,
   RenderbufferInfo *info = (RenderbufferInfo *)ctx->renderbuffer;
 
   // Allocate buffer.
+  const size_t bufferSize = width * height * GetBytesPerPixel(internalformat);
+
   if (info->address)
     FreeVRAM(info->address);
 
   info->address = AllocVRAM(
-      bufferSize, IsDepthBuffer(internalformat) ? VRAM_ALLOC_B : VRAM_ALLOC_A);
+      bufferSize, IsDepthFormat(internalformat) ? VRAM_ALLOC_B : VRAM_ALLOC_A);
 
   if (!info->address) {
     info->address =
         AllocVRAM(bufferSize,
-                  IsDepthBuffer(internalformat) ? VRAM_ALLOC_A : VRAM_ALLOC_B);
+                  IsDepthFormat(internalformat) ? VRAM_ALLOC_A : VRAM_ALLOC_B);
   }
 
   if (!info->address) {

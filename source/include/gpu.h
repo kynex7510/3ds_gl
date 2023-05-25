@@ -23,6 +23,14 @@ void GLASS_gpu_enableRegs(CtxImpl *ctx);
 #define GPUDisableRegs GLASS_gpu_disableRegs
 void GLASS_gpu_disableRegs(CtxImpl *ctx);
 
+// Wait, stop, clear queue.
+#define GPUFlushQueue GLASS_gpu_flushQueue
+void GLASS_gpu_flushQueue(CtxImpl *ctx, bool unbind);
+
+// Run queue.
+#define GPURunQueue GLASS_gpu_runQueue
+void GLASS_gpu_runQueue(CtxImpl *ctx, bool bind);
+
 // Flush pending GPU commands.
 #define GPUFlushCommands GLASS_gpu_flushCommands
 void GLASS_gpu_flushCommands(CtxImpl *ctx);
@@ -30,6 +38,18 @@ void GLASS_gpu_flushCommands(CtxImpl *ctx);
 // Flush pending GPU commands and run them.
 #define GPUFlushAndRunCommands GLASS_gpu_flushAndRunCommands
 void GLASS_gpu_flushAndRunCommands(CtxImpl *ctx);
+
+// Clear color & depth buffers with the specified value.
+#define GPUClearBuffers GLASS_gpu_clearBuffers
+void GLASS_gpu_clearBuffers(RenderbufferInfo *colorBuffer, const u32 clearColor,
+                            RenderbufferInfo *depthBuffer,
+                            const u32 clearDepth);
+
+// Copy a color buffer to the specified display buffer.
+#define GPUTransferBuffer GLASS_gpu_transferBuffer
+void GLASS_gpu_transferBuffer(const RenderbufferInfo *colorBuffer,
+                              const RenderbufferInfo *displayBuffer,
+                              const u32 flags);
 
 // Bind framebuffer.
 #define BindFramebuffer GLASS_gpu_bindFramebuffer

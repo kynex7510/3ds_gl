@@ -197,10 +197,7 @@ typedef struct {
 
 // Internal context.
 typedef struct {
-  // Parameters publicly exposed.
-  gfxScreen_t targetScreen;        // Target screen for drawing (top or bottom).
-  gfx3dSide_t targetSide;          // Target side for drawing (left or right).
-  GX_TRANSFER_SCALE transferScale; // TODO: Anti-aliasing.
+  glassCtx exposed;
 
   // Platform.
   u32 flags;            // State flags.

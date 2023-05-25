@@ -63,8 +63,7 @@ LIBS	:= -lGLASSd -lcitro3dd -lctru -lm
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(CTRULIB) /home/user/Documents/repos/3ds_gl
-
+LIBDIRS	:= $(CTRULIB) $(CURDIR)/../..
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
